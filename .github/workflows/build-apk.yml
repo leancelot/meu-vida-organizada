@@ -26,9 +26,10 @@ jobs:
           java-version: 17
           cache: 'gradle'
 
-      - name: Aceitar licenças do Android SDK
+      - name: Aceitar licenças do Android SDK e preparar SDK 36
         run: |
           yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-36" || true
 
       - name: Instalar dependências
         run: npm install --legacy-peer-deps
