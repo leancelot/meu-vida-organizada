@@ -1,0 +1,6 @@
+{
+  "name": "VidaOrganizada - Gestor Pessoal",
+  "description": "Aplicativo de organização pessoal com gestão de tarefas diárias, finanças, sincronização no Google Drive e integração com Google Agenda.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
