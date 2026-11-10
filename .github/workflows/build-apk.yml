@@ -25,29 +25,41 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: 17
+          cache: 'gradle'
+
+      - name: Aceitar licenças do Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
 
       - name: Instalar dependências
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Compilar Web App (Vite)
         run: npm run build
         env:
           VITE_APP_URL: ${{ secrets.APP_URL || '' }}
 
-      - name: Inicializar e sincronizar Capacitor Android
+      - name: Sincronizar Capacitor Android
         run: |
-          npx cap add android || true
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
           npx cap sync android
 
       - name: Compilar APK com Gradle
         run: |
           cd android
+          # Corrige possíveis quebras de linha CRLF do Windows no script gradlew
+          sed -i -e 's/\r$//' gradlew || true
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          # Aponta explicitamente para o SDK Android do runner
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Salvar APK como Artefato para Download
         uses: actions/upload-artifact@v4
         with:
           name: VidaOrganizada-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
+          if-no-files-found: error
