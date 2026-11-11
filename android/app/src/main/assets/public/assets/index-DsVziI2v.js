@@ -6,6 +6,15 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
+var __exportAll = (all, no_symbols) => {
+	let target = {};
+	for (var name in all) __defProp(target, name, {
+		get: all[name],
+		enumerable: true
+	});
+	if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
+	return target;
+};
 var __copyProps = (to, from, except, desc) => {
 	if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
 		key = keys[i];
@@ -11450,9 +11459,620 @@ var require_client = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	checkDCE();
 	module.exports = require_react_dom_client_production();
 }));
-// node_modules/@firebase/util/dist/postinstall.mjs
+// node_modules/@capacitor/core/dist/index.js
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_client = require_client();
+/*! Capacitor: https://capacitorjs.com/ - MIT License */
+var ExceptionCode;
+(function(ExceptionCode) {
+	/**
+	* API is not implemented.
+	*
+	* This usually means the API can't be used because it is not implemented for
+	* the current platform.
+	*/
+	ExceptionCode["Unimplemented"] = "UNIMPLEMENTED";
+	/**
+	* API is not available.
+	*
+	* This means the API can't be used right now because:
+	*   - it is currently missing a prerequisite, such as network connectivity
+	*   - it requires a particular platform or browser version
+	*/
+	ExceptionCode["Unavailable"] = "UNAVAILABLE";
+})(ExceptionCode || (ExceptionCode = {}));
+var CapacitorException = class extends Error {
+	constructor(message, code, data) {
+		super(message);
+		this.message = message;
+		this.code = code;
+		this.data = data;
+	}
+};
+var getPlatformId = (win) => {
+	var _a, _b;
+	if (win === null || win === void 0 ? void 0 : win.androidBridge) return "android";
+	else if ((_b = (_a = win === null || win === void 0 ? void 0 : win.webkit) === null || _a === void 0 ? void 0 : _a.messageHandlers) === null || _b === void 0 ? void 0 : _b.bridge) return "ios";
+	else return "web";
+};
+var createCapacitor = (win) => {
+	const capCustomPlatform = win.CapacitorCustomPlatform || null;
+	const cap = win.Capacitor || {};
+	const Plugins = cap.Plugins = cap.Plugins || {};
+	const getPlatform = () => {
+		return capCustomPlatform !== null ? capCustomPlatform.name : getPlatformId(win);
+	};
+	const isNativePlatform = () => getPlatform() !== "web";
+	const isPluginAvailable = (pluginName) => {
+		const plugin = registeredPlugins.get(pluginName);
+		if (plugin === null || plugin === void 0 ? void 0 : plugin.platforms.has(getPlatform())) return true;
+		if (getPluginHeader(pluginName)) return true;
+		return false;
+	};
+	const getPluginHeader = (pluginName) => {
+		var _a;
+		return (_a = cap.PluginHeaders) === null || _a === void 0 ? void 0 : _a.find((h) => h.name === pluginName);
+	};
+	const handleError = (err) => win.console.error(err);
+	const registeredPlugins = /* @__PURE__ */ new Map();
+	const registerPlugin = (pluginName, jsImplementations = {}) => {
+		const registeredPlugin = registeredPlugins.get(pluginName);
+		if (registeredPlugin) {
+			console.warn(`Capacitor plugin "${pluginName}" already registered. Cannot register plugins twice.`);
+			return registeredPlugin.proxy;
+		}
+		const platform = getPlatform();
+		const pluginHeader = getPluginHeader(pluginName);
+		let jsImplementation;
+		const loadPluginImplementation = async () => {
+			if (!jsImplementation && platform in jsImplementations) jsImplementation = typeof jsImplementations[platform] === "function" ? jsImplementation = await jsImplementations[platform]() : jsImplementation = jsImplementations[platform];
+			else if (capCustomPlatform !== null && !jsImplementation && "web" in jsImplementations) jsImplementation = typeof jsImplementations["web"] === "function" ? jsImplementation = await jsImplementations["web"]() : jsImplementation = jsImplementations["web"];
+			return jsImplementation;
+		};
+		const createPluginMethod = (impl, prop) => {
+			var _a, _b;
+			if (pluginHeader) {
+				const methodHeader = pluginHeader === null || pluginHeader === void 0 ? void 0 : pluginHeader.methods.find((m) => prop === m.name);
+				if (methodHeader) {
+					if (methodHeader.rtype === "promise") return (options) => cap.nativePromise(pluginName, prop.toString(), options);
+					else return (options, callback) => cap.nativeCallback(pluginName, prop.toString(), options, callback);
+				} else if (impl) return (_a = impl[prop]) === null || _a === void 0 ? void 0 : _a.bind(impl);
+			} else if (impl) return (_b = impl[prop]) === null || _b === void 0 ? void 0 : _b.bind(impl);
+			else throw new CapacitorException(`"${pluginName}" plugin is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+		};
+		const createPluginMethodWrapper = (prop) => {
+			let remove;
+			const wrapper = (...args) => {
+				const p = loadPluginImplementation().then((impl) => {
+					const fn = createPluginMethod(impl, prop);
+					if (fn) {
+						const p = fn(...args);
+						remove = p === null || p === void 0 ? void 0 : p.remove;
+						return p;
+					} else throw new CapacitorException(`"${pluginName}.${prop}()" is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+				});
+				if (prop === "addListener") p.remove = async () => remove();
+				return p;
+			};
+			wrapper.toString = () => `${prop.toString()}() { [capacitor code] }`;
+			Object.defineProperty(wrapper, "name", {
+				value: prop,
+				writable: false,
+				configurable: false
+			});
+			return wrapper;
+		};
+		const addListener = createPluginMethodWrapper("addListener");
+		const removeListener = createPluginMethodWrapper("removeListener");
+		const addListenerNative = (eventName, callback) => {
+			const call = addListener({ eventName }, callback);
+			const remove = async () => {
+				const callbackId = await call;
+				removeListener({
+					eventName,
+					callbackId
+				}, callback);
+			};
+			const p = new Promise((resolve) => call.then(() => resolve({ remove })));
+			p.remove = async () => {
+				console.warn(`Using addListener() without 'await' is deprecated.`);
+				await remove();
+			};
+			return p;
+		};
+		const proxy = new Proxy({}, { get(_, prop) {
+			switch (prop) {
+				case "$$typeof": return;
+				case "toJSON": return () => ({});
+				case "addListener": return pluginHeader ? addListenerNative : addListener;
+				case "removeListener": return removeListener;
+				default: return createPluginMethodWrapper(prop);
+			}
+		} });
+		Plugins[pluginName] = proxy;
+		registeredPlugins.set(pluginName, {
+			name: pluginName,
+			proxy,
+			platforms: /* @__PURE__ */ new Set([...Object.keys(jsImplementations), ...pluginHeader ? [platform] : []])
+		});
+		return proxy;
+	};
+	if (!cap.convertFileSrc) cap.convertFileSrc = (filePath) => filePath;
+	cap.getPlatform = getPlatform;
+	cap.handleError = handleError;
+	cap.isNativePlatform = isNativePlatform;
+	cap.isPluginAvailable = isPluginAvailable;
+	cap.registerPlugin = registerPlugin;
+	cap.Exception = CapacitorException;
+	cap.DEBUG = !!cap.DEBUG;
+	cap.isLoggingEnabled = !!cap.isLoggingEnabled;
+	return cap;
+};
+var initCapacitorGlobal = (win) => win.Capacitor = createCapacitor(win);
+var Capacitor = /*#__PURE__*/ initCapacitorGlobal(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : {});
+var registerPlugin = Capacitor.registerPlugin;
+/**
+* Base class web plugins should extend.
+*/
+var WebPlugin = class {
+	constructor() {
+		this.listeners = {};
+		this.retainedEventArguments = {};
+		this.windowListeners = {};
+	}
+	addListener(eventName, listenerFunc) {
+		let firstListener = false;
+		if (!this.listeners[eventName]) {
+			this.listeners[eventName] = [];
+			firstListener = true;
+		}
+		this.listeners[eventName].push(listenerFunc);
+		const windowListener = this.windowListeners[eventName];
+		if (windowListener && !windowListener.registered) this.addWindowListener(windowListener);
+		if (firstListener) this.sendRetainedArgumentsForEvent(eventName);
+		const remove = async () => this.removeListener(eventName, listenerFunc);
+		return Promise.resolve({ remove });
+	}
+	async removeAllListeners() {
+		this.listeners = {};
+		for (const listener in this.windowListeners) this.removeWindowListener(this.windowListeners[listener]);
+		this.windowListeners = {};
+	}
+	notifyListeners(eventName, data, retainUntilConsumed) {
+		const listeners = this.listeners[eventName];
+		if (!listeners) {
+			if (retainUntilConsumed) {
+				let args = this.retainedEventArguments[eventName];
+				if (!args) args = [];
+				args.push(data);
+				this.retainedEventArguments[eventName] = args;
+			}
+			return;
+		}
+		listeners.forEach((listener) => listener(data));
+	}
+	hasListeners(eventName) {
+		var _a;
+		return !!((_a = this.listeners[eventName]) === null || _a === void 0 ? void 0 : _a.length);
+	}
+	registerWindowListener(windowEventName, pluginEventName) {
+		this.windowListeners[pluginEventName] = {
+			registered: false,
+			windowEventName,
+			pluginEventName,
+			handler: (event) => {
+				this.notifyListeners(pluginEventName, event);
+			}
+		};
+	}
+	unimplemented(msg = "not implemented") {
+		return new Capacitor.Exception(msg, ExceptionCode.Unimplemented);
+	}
+	unavailable(msg = "not available") {
+		return new Capacitor.Exception(msg, ExceptionCode.Unavailable);
+	}
+	async removeListener(eventName, listenerFunc) {
+		const listeners = this.listeners[eventName];
+		if (!listeners) return;
+		const index = listeners.indexOf(listenerFunc);
+		if (index !== -1) this.listeners[eventName].splice(index, 1);
+		if (!this.listeners[eventName].length) this.removeWindowListener(this.windowListeners[eventName]);
+	}
+	addWindowListener(handle) {
+		window.addEventListener(handle.windowEventName, handle.handler);
+		handle.registered = true;
+	}
+	removeWindowListener(handle) {
+		if (!handle) return;
+		window.removeEventListener(handle.windowEventName, handle.handler);
+		handle.registered = false;
+	}
+	sendRetainedArgumentsForEvent(eventName) {
+		const args = this.retainedEventArguments[eventName];
+		if (!args) return;
+		delete this.retainedEventArguments[eventName];
+		args.forEach((arg) => {
+			this.notifyListeners(eventName, arg);
+		});
+	}
+};
+/******** END WEB VIEW PLUGIN ********/
+/******** COOKIES PLUGIN ********/
+/**
+* Safely web encode a string value (inspired by js-cookie)
+* @param str The string value to encode
+*/
+var encode = (str) => encodeURIComponent(str).replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent).replace(/[()]/g, escape);
+/**
+* Safely web decode a string value (inspired by js-cookie)
+* @param str The string value to decode
+*/
+var decode = (str) => str.replace(/(%[\dA-F]{2})+/gi, decodeURIComponent);
+var CapacitorCookiesPluginWeb = class extends WebPlugin {
+	async getCookies() {
+		const cookies = document.cookie;
+		const cookieMap = {};
+		cookies.split(";").forEach((cookie) => {
+			if (cookie.length <= 0) return;
+			let [key, value] = cookie.replace(/=/, "CAP_COOKIE").split("CAP_COOKIE");
+			key = decode(key).trim();
+			value = decode(value).trim();
+			cookieMap[key] = value;
+		});
+		return cookieMap;
+	}
+	async setCookie(options) {
+		try {
+			const encodedKey = encode(options.key);
+			const encodedValue = encode(options.value);
+			const expires = options.expires ? `; expires=${options.expires.replace("expires=", "")}` : "";
+			const path = (options.path || "/").replace("path=", "");
+			const domain = options.url != null && options.url.length > 0 ? `domain=${options.url}` : "";
+			document.cookie = `${encodedKey}=${encodedValue || ""}${expires}; path=${path}; ${domain};`;
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async deleteCookie(options) {
+		try {
+			document.cookie = `${options.key}=; Max-Age=0`;
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async clearCookies() {
+		try {
+			const cookies = document.cookie.split(";") || [];
+			for (const cookie of cookies) document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${(/* @__PURE__ */ new Date()).toUTCString()};path=/`);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+	async clearAllCookies() {
+		try {
+			await this.clearCookies();
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+};
+registerPlugin("CapacitorCookies", { web: () => new CapacitorCookiesPluginWeb() });
+/**
+* Read in a Blob value and return it as a base64 string
+* @param blob The blob value to convert to a base64 string
+*/
+var readBlobAsBase64 = async (blob) => new Promise((resolve, reject) => {
+	const reader = new FileReader();
+	reader.onload = () => {
+		const base64String = reader.result;
+		resolve(base64String.indexOf(",") >= 0 ? base64String.split(",")[1] : base64String);
+	};
+	reader.onerror = (error) => reject(error);
+	reader.readAsDataURL(blob);
+});
+/**
+* Normalize an HttpHeaders map by lowercasing all of the values
+* @param headers The HttpHeaders object to normalize
+*/
+var normalizeHttpHeaders = (headers = {}) => {
+	const originalKeys = Object.keys(headers);
+	return Object.keys(headers).map((k) => k.toLocaleLowerCase()).reduce((acc, key, index) => {
+		acc[key] = headers[originalKeys[index]];
+		return acc;
+	}, {});
+};
+/**
+* Builds a string of url parameters that
+* @param params A map of url parameters
+* @param shouldEncode true if you should encodeURIComponent() the values (true by default)
+*/
+var buildUrlParams = (params, shouldEncode = true) => {
+	if (!params) return null;
+	return Object.entries(params).reduce((accumulator, entry) => {
+		const [key, value] = entry;
+		let encodedValue;
+		let item;
+		if (Array.isArray(value)) {
+			item = "";
+			value.forEach((str) => {
+				encodedValue = shouldEncode ? encodeURIComponent(str) : str;
+				item += `${key}=${encodedValue}&`;
+			});
+			item.slice(0, -1);
+		} else {
+			encodedValue = shouldEncode ? encodeURIComponent(value) : value;
+			item = `${key}=${encodedValue}`;
+		}
+		return `${accumulator}&${item}`;
+	}, "").substr(1);
+};
+/**
+* Build the RequestInit object based on the options passed into the initial request
+* @param options The Http plugin options
+* @param extra Any extra RequestInit values
+*/
+var buildRequestInit = (options, extra = {}) => {
+	const output = Object.assign({
+		method: options.method || "GET",
+		headers: options.headers
+	}, extra);
+	const type = normalizeHttpHeaders(options.headers)["content-type"] || "";
+	if (typeof options.data === "string") output.body = options.data;
+	else if (type.includes("application/x-www-form-urlencoded")) {
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(options.data || {})) params.set(key, value);
+		output.body = params.toString();
+	} else if (type.includes("multipart/form-data") || options.data instanceof FormData) {
+		const form = new FormData();
+		if (options.data instanceof FormData) options.data.forEach((value, key) => {
+			form.append(key, value);
+		});
+		else for (const key of Object.keys(options.data)) form.append(key, options.data[key]);
+		output.body = form;
+		const headers = new Headers(output.headers);
+		headers.delete("content-type");
+		output.headers = headers;
+	} else if (type.includes("application/json") || typeof options.data === "object") output.body = JSON.stringify(options.data);
+	return output;
+};
+var CapacitorHttpPluginWeb = class extends WebPlugin {
+	/**
+	* Perform an Http request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async request(options) {
+		const requestInit = buildRequestInit(options, options.webFetchExtra);
+		const urlParams = buildUrlParams(options.params, options.shouldEncodeUrlParams);
+		const url = urlParams ? `${options.url}?${urlParams}` : options.url;
+		const response = await fetch(url, requestInit);
+		const contentType = response.headers.get("content-type") || "";
+		let { responseType = "text" } = response.ok ? options : {};
+		if (contentType.includes("application/json")) responseType = "json";
+		let data;
+		let blob;
+		switch (responseType) {
+			case "arraybuffer":
+			case "blob":
+				blob = await response.blob();
+				data = await readBlobAsBase64(blob);
+				break;
+			case "json":
+				data = await response.json();
+				break;
+			default: data = await response.text();
+		}
+		const headers = {};
+		response.headers.forEach((value, key) => {
+			headers[key] = value;
+		});
+		return {
+			data,
+			headers,
+			status: response.status,
+			url: response.url
+		};
+	}
+	/**
+	* Perform an Http GET request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async get(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "GET" }));
+	}
+	/**
+	* Perform an Http POST request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async post(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "POST" }));
+	}
+	/**
+	* Perform an Http PUT request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async put(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "PUT" }));
+	}
+	/**
+	* Perform an Http PATCH request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async patch(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "PATCH" }));
+	}
+	/**
+	* Perform an Http DELETE request given a set of options
+	* @param options Options to build the HTTP request
+	*/
+	async delete(options) {
+		return this.request(Object.assign(Object.assign({}, options), { method: "DELETE" }));
+	}
+};
+registerPlugin("CapacitorHttp", { web: () => new CapacitorHttpPluginWeb() });
+/******** END HTTP PLUGIN ********/
+/******** SYSTEM BARS PLUGIN ********/
+/**
+* Available status bar styles.
+*/
+var SystemBarsStyle;
+(function(SystemBarsStyle) {
+	/**
+	* Light system bar content on a dark background.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Dark"] = "DARK";
+	/**
+	* For dark system bar content on a light background.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Light"] = "LIGHT";
+	/**
+	* The style is based on the device appearance or the underlying content.
+	* If the device is using Dark mode, the system bars content will be light.
+	* If the device is using Light mode, the system bars content will be dark.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarsStyle["Default"] = "DEFAULT";
+})(SystemBarsStyle || (SystemBarsStyle = {}));
+/**
+* Available system bar types.
+*/
+var SystemBarType;
+(function(SystemBarType) {
+	/**
+	* The top status bar on both Android and iOS.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarType["StatusBar"] = "StatusBar";
+	/**
+	* The navigation bar (or gesture bar on iOS) on both Android and iOS.
+	*
+	* @since 8.0.0
+	*/
+	SystemBarType["NavigationBar"] = "NavigationBar";
+})(SystemBarType || (SystemBarType = {}));
+var SystemBarsPluginWeb = class extends WebPlugin {
+	async setStyle() {
+		this.unavailable("not available for web");
+	}
+	async setAnimation() {
+		this.unavailable("not available for web");
+	}
+	async show() {
+		this.unavailable("not available for web");
+	}
+	async hide() {
+		this.unavailable("not available for web");
+	}
+};
+registerPlugin("SystemBars", { web: () => new SystemBarsPluginWeb() });
+// \0vite/preload-helper.js
+var scriptRel = "modulepreload";
+var assetsURL = function(dep) {
+	return "/" + dep;
+};
+var seen = {};
+var isCssPreloadUrl = function isCssPreloadUrl(url) {
+	return url.pathname.endsWith(".css");
+};
+var preloadOnce = function preloadOnce(seen, href, preload) {
+	if (href in seen) return seen[href];
+	const promise = preload();
+	if (!promise) {
+		seen[href] = void 0;
+		return;
+	}
+	const preloadPromise = promise.then(() => {
+		seen[href] = void 0;
+	}, (err) => {
+		seen[href] = void 0;
+		throw err;
+	});
+	seen[href] = preloadPromise;
+	return preloadPromise;
+};
+var __vitePreload = function preload(baseModule, deps, importerUrl) {
+	let promise = Promise.resolve();
+	if (deps && deps.length > 0) {
+		let preloadedHrefs;
+		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
+		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
+		function allSettled(promises) {
+			return Promise.all(promises.map((p) => Promise.resolve(p).then((value) => ({
+				status: "fulfilled",
+				value
+			}), (reason) => ({
+				status: "rejected",
+				reason
+			}))));
+		}
+		function importMetaResolve(specifier) {
+			if (import.meta.resolve) return new URL(import.meta.resolve(specifier));
+			return new URL(
+				specifier,
+				/** #__KEEP__ */
+				import.meta.url
+			);
+		}
+		promise = allSettled(deps.map((depString) => {
+			depString = assetsURL(depString, importerUrl);
+			const dep = importMetaResolve(depString);
+			const isCss = isCssPreloadUrl(dep);
+			return preloadOnce(seen, dep.href, () => {
+				if (preloadedHrefs === void 0) {
+					preloadedHrefs = {
+						all: /* @__PURE__ */ new Set(),
+						styles: /* @__PURE__ */ new Set()
+					};
+					const links = document.getElementsByTagName("link");
+					for (let i = links.length - 1; i >= 0; i--) {
+						const link = links[i];
+						preloadedHrefs.all.add(link.href);
+						if (link.rel === "stylesheet") preloadedHrefs.styles.add(link.href);
+					}
+				}
+				if ((isCss ? preloadedHrefs.styles : preloadedHrefs.all).has(dep.href)) return;
+				const link = document.createElement("link");
+				link.rel = isCss ? "stylesheet" : scriptRel;
+				if (!isCss) link.as = "script";
+				link.crossOrigin = "";
+				link.href = dep.href;
+				if (cspNonce) link.setAttribute("nonce", cspNonce);
+				document.head.appendChild(link);
+				if (isCss) return new Promise((res, rej) => {
+					const handleSettle = (e) => {
+						link.removeEventListener("load", handleSettle);
+						link.removeEventListener("error", handleSettle);
+						if (e.type === "error") rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`));
+						else res(e);
+					};
+					link.addEventListener("load", handleSettle);
+					link.addEventListener("error", handleSettle);
+				});
+			});
+		}).filter((p) => p !== void 0));
+	}
+	function handlePreloadError(err) {
+		const e = new Event("vite:preloadError", { cancelable: true });
+		e.payload = err;
+		window.dispatchEvent(e);
+		if (!e.defaultPrevented) throw err;
+	}
+	return promise.then((res) => {
+		for (const item of res || []) {
+			if (item.status !== "rejected") continue;
+			handlePreloadError(item.reason);
+		}
+		return baseModule().catch(handlePreloadError);
+	});
+};
+// node_modules/@capacitor/app/dist/esm/index.js
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-BQNet6xg.js").then((m) => new m.AppWeb()), []) });
+// node_modules/@firebase/util/dist/postinstall.mjs
 /**
 * @license
 * Copyright 2025 Google LLC
@@ -20881,10 +21501,7 @@ var provider = new GoogleAuthProvider();
 SCOPES.forEach((scope) => {
 	provider.addScope(scope);
 });
-provider.setCustomParameters({
-	prompt: "consent",
-	access_type: "offline"
-});
+provider.setCustomParameters({ prompt: "select_account" });
 var isSigningIn = false;
 var cachedAccessToken = null;
 var initAuth = (onAuthSuccess, onAuthFailure) => {
@@ -20907,13 +21524,14 @@ var googleSignIn = async () => {
 		isSigningIn = true;
 		const result = await signInWithPopup(auth, provider);
 		const credential = GoogleAuthProvider.credentialFromResult(result);
-		if (!credential?.accessToken) throw new Error("Falha ao obter token de acesso do Google");
+		if (!credential?.accessToken) throw new Error("Falha ao obter token de acesso do Google.");
 		cachedAccessToken = credential.accessToken;
 		return {
 			user: result.user,
 			accessToken: cachedAccessToken
 		};
 	} catch (error) {
+		if (error?.code === "auth/popup-closed-by-user" || error?.code === "auth/cancelled-popup-request") return null;
 		console.error("Erro na autenticação do Google:", error);
 		throw error;
 	} finally {
@@ -21074,18 +21692,54 @@ async function deleteCalendarEvent(accessToken, eventId) {
 	});
 	if (!res.ok && res.status !== 404) throw new Error(`Falha ao excluir evento da Google Agenda (${res.status})`);
 }
+// node_modules/@capacitor/local-notifications/dist/esm/definitions.js
+/**
+* Day of the week. Used for scheduling notifications on a particular weekday.
+*/
+var Weekday;
+(function(Weekday) {
+	Weekday[Weekday["Sunday"] = 1] = "Sunday";
+	Weekday[Weekday["Monday"] = 2] = "Monday";
+	Weekday[Weekday["Tuesday"] = 3] = "Tuesday";
+	Weekday[Weekday["Wednesday"] = 4] = "Wednesday";
+	Weekday[Weekday["Thursday"] = 5] = "Thursday";
+	Weekday[Weekday["Friday"] = 6] = "Friday";
+	Weekday[Weekday["Saturday"] = 7] = "Saturday";
+})(Weekday || (Weekday = {}));
+// node_modules/@capacitor/local-notifications/dist/esm/index.js
+var esm_exports = /* @__PURE__ */ __exportAll({ LocalNotifications: () => LocalNotifications });
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-BMeGxrGQ.js").then((m) => new m.LocalNotificationsWeb()), []) });
 // src/services/notificationService.ts
 /**
-* Web Notifications API Service (Silencioso - Sem alertas sonoros)
+* Notification Service com suporte nativo Android (Capacitor LocalNotifications)
+* e fallback suave para Web Notifications (Silencioso - Sem alertas sonoros)
 */
 function isNotificationSupported() {
+	if (Capacitor.isNativePlatform()) return true;
 	return typeof window !== "undefined" && "Notification" in window;
 }
 function getNotificationPermission() {
+	if (Capacitor.isNativePlatform()) {
+		try {
+			const saved = localStorage.getItem("vidaorganizada_native_notif_perm");
+			if (saved === "granted" || saved === "denied") return saved;
+		} catch {}
+		return "default";
+	}
 	if (!isNotificationSupported()) return "denied";
 	return Notification.permission;
 }
 async function requestNotificationPermission() {
+	if (Capacitor.isNativePlatform()) try {
+		const perm = (await LocalNotifications.requestPermissions()).display === "granted" ? "granted" : "denied";
+		try {
+			localStorage.setItem("vidaorganizada_native_notif_perm", perm);
+		} catch {}
+		return perm;
+	} catch (error) {
+		console.warn("Erro ao solicitar permissão de notificações nativas:", error);
+		return "denied";
+	}
 	if (!isNotificationSupported()) return "denied";
 	try {
 		return await Notification.requestPermission();
@@ -21095,9 +21749,25 @@ async function requestNotificationPermission() {
 	}
 }
 /**
-* Triggers a silent Web Notification if permission is granted
+* Dispara uma notificação nativa no Android ou Web Notification no desktop/PWA (silenciosa)
 */
-function sendWebNotification(title, options) {
+async function sendWebNotification(title, options) {
+	if (Capacitor.isNativePlatform()) try {
+		if ((await LocalNotifications.checkPermissions()).display !== "granted") {
+			if ((await LocalNotifications.requestPermissions()).display !== "granted") return false;
+		}
+		await LocalNotifications.schedule({ notifications: [{
+			id: Math.floor(Math.random() * 1e6) + 1,
+			title,
+			body: options?.body || "",
+			schedule: { at: new Date(Date.now() + 200) },
+			extra: { tag: options?.tag }
+		}] });
+		return true;
+	} catch (e) {
+		console.warn("Erro ao disparar notificação nativa:", e);
+		return false;
+	}
 	if (!isNotificationSupported() || Notification.permission !== "granted") return false;
 	try {
 		const notification = new Notification(title, {
@@ -22110,6 +22780,17 @@ var AppProvider = ({ children }) => {
 	const [notificationPermission, setNotificationPermission] = (0, import_react.useState)(() => {
 		return getNotificationPermission();
 	});
+	(0, import_react.useEffect)(() => {
+		if (Capacitor.isNativePlatform()) __vitePreload(async () => {
+			const { LocalNotifications } = await Promise.resolve().then(() => esm_exports);
+			return { LocalNotifications };
+		}, void 0).then(({ LocalNotifications }) => {
+			LocalNotifications.checkPermissions().then((status) => {
+				const perm = status.display === "granted" ? "granted" : status.display === "denied" ? "denied" : "default";
+				setNotificationPermission(perm);
+			}).catch(() => {});
+		});
+	}, []);
 	const [notificationsList, setNotificationsList] = (0, import_react.useState)(() => {
 		try {
 			const saved = localStorage.getItem(STORAGE_KEY_NOTIFS);
@@ -22465,7 +23146,17 @@ var AppProvider = ({ children }) => {
 				}
 			}
 		} catch (err) {
-			console.error("Erro de login:", err);
+			console.warn("Aviso de login:", err);
+			const userMessage = err?.message?.includes("popup") || err?.code === "auth/popup-blocked" ? "O navegador bloqueou a janela de login. Por favor, permita pop-ups para conectar com o Google." : "Não foi possível completar o login com o Google no momento. O app continuará funcionando normalmente no modo local.";
+			const newNotif = {
+				id: "notif-auth-" + Date.now(),
+				title: "Aviso de Login",
+				body: userMessage,
+				timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+				type: "reminder",
+				read: false
+			};
+			setNotificationsList((prev) => [newNotif, ...prev]);
 		} finally {
 			setIsAuthenticating(false);
 		}
@@ -22970,6 +23661,54 @@ var ArrowUpRight = createLucideIcon("arrow-up-right", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var BellOff = createLucideIcon("bell-off", [
+	["path", {
+		d: "M10.268 21a2 2 0 0 0 3.464 0",
+		key: "vwvbt9"
+	}],
+	["path", {
+		d: "M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742",
+		key: "178tsu"
+	}],
+	["path", {
+		d: "m2 2 20 20",
+		key: "1ooewy"
+	}],
+	["path", {
+		d: "M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05",
+		key: "1hqiys"
+	}]
+]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var BellRing = createLucideIcon("bell-ring", [
+	["path", {
+		d: "M10.268 21a2 2 0 0 0 3.464 0",
+		key: "vwvbt9"
+	}],
+	["path", {
+		d: "M22 8c0-2.3-.8-4.3-2-6",
+		key: "5bb3ad"
+	}],
+	["path", {
+		d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326",
+		key: "11g9vi"
+	}],
+	["path", {
+		d: "M4 2C2.8 3.7 2 5.7 2 8",
+		key: "tap9e0"
+	}]
+]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var Bell = createLucideIcon("bell", [["path", {
 	d: "M10.268 21a2 2 0 0 0 3.464 0",
 	key: "vwvbt9"
@@ -22977,42 +23716,6 @@ var Bell = createLucideIcon("bell", [["path", {
 	d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326",
 	key: "11g9vi"
 }]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Bot = createLucideIcon("bot", [
-	["path", {
-		d: "M12 8V4H8",
-		key: "hb8ula"
-	}],
-	["rect", {
-		width: "16",
-		height: "12",
-		x: "4",
-		y: "8",
-		rx: "2",
-		key: "enze0r"
-	}],
-	["path", {
-		d: "M2 14h2",
-		key: "vft8re"
-	}],
-	["path", {
-		d: "M20 14h2",
-		key: "4cs60a"
-	}],
-	["path", {
-		d: "M15 13v2",
-		key: "1xurst"
-	}],
-	["path", {
-		d: "M9 13v2",
-		key: "rq6x2g"
-	}]
-]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -23201,16 +23904,6 @@ var Check = createLucideIcon("check", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var ChevronDown = createLucideIcon("chevron-down", [["path", {
-	d: "m6 9 6 6 6-6",
-	key: "qrunsl"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var ChevronLeft = createLucideIcon("chevron-left", [["path", {
 	d: "m15 18-6-6 6-6",
 	key: "1wnfg3"
@@ -23224,16 +23917,6 @@ var ChevronLeft = createLucideIcon("chevron-left", [["path", {
 var ChevronRight = createLucideIcon("chevron-right", [["path", {
 	d: "m9 18 6-6-6-6",
 	key: "mthhwq"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var ChevronUp = createLucideIcon("chevron-up", [["path", {
-	d: "m18 15-6-6-6 6",
-	key: "153udz"
 }]]);
 /**
 * @license lucide-react v0.546.0 - ISC
@@ -23424,24 +24107,6 @@ var Cloud = createLucideIcon("cloud", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var Copy = createLucideIcon("copy", [["rect", {
-	width: "14",
-	height: "14",
-	x: "8",
-	y: "8",
-	rx: "2",
-	ry: "2",
-	key: "17jyea"
-}], ["path", {
-	d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
-	key: "zix9uf"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var Cpu = createLucideIcon("cpu", [
 	["path", {
 		d: "M12 20v2",
@@ -23534,29 +24199,6 @@ var CreditCard = createLucideIcon("credit-card", [["rect", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var Database = createLucideIcon("database", [
-	["ellipse", {
-		cx: "12",
-		cy: "5",
-		rx: "9",
-		ry: "3",
-		key: "msslwz"
-	}],
-	["path", {
-		d: "M3 5V19A9 3 0 0 0 21 19V5",
-		key: "1wlel7"
-	}],
-	["path", {
-		d: "M3 12A9 3 0 0 0 21 12",
-		key: "mv7ke4"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var DollarSign = createLucideIcon("dollar-sign", [["line", {
 	x1: "12",
 	x2: "12",
@@ -23613,171 +24255,10 @@ var ExternalLink = createLucideIcon("external-link", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var EyeOff = createLucideIcon("eye-off", [
-	["path", {
-		d: "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49",
-		key: "ct8e1f"
-	}],
-	["path", {
-		d: "M14.084 14.158a3 3 0 0 1-4.242-4.242",
-		key: "151rxh"
-	}],
-	["path", {
-		d: "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143",
-		key: "13bj9a"
-	}],
-	["path", {
-		d: "m2 2 20 20",
-		key: "1ooewy"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Eye = createLucideIcon("eye", [["path", {
-	d: "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0",
-	key: "1nclc0"
-}], ["circle", {
-	cx: "12",
-	cy: "12",
-	r: "3",
-	key: "1v7zrd"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var FolderGit2 = createLucideIcon("folder-git-2", [
-	["path", {
-		d: "M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5",
-		key: "1w6njk"
-	}],
-	["circle", {
-		cx: "13",
-		cy: "12",
-		r: "2",
-		key: "1j92g6"
-	}],
-	["path", {
-		d: "M18 19c-2.8 0-5-2.2-5-5v8",
-		key: "pkpw2h"
-	}],
-	["circle", {
-		cx: "20",
-		cy: "19",
-		r: "2",
-		key: "1obnsp"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var Funnel = createLucideIcon("funnel", [["path", {
 	d: "M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z",
 	key: "sc7q7i"
 }]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var GitCommitHorizontal = createLucideIcon("git-commit-horizontal", [
-	["circle", {
-		cx: "12",
-		cy: "12",
-		r: "3",
-		key: "1v7zrd"
-	}],
-	["line", {
-		x1: "3",
-		x2: "9",
-		y1: "12",
-		y2: "12",
-		key: "1dyftd"
-	}],
-	["line", {
-		x1: "15",
-		x2: "21",
-		y1: "12",
-		y2: "12",
-		key: "oup4p8"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var GitBranch = createLucideIcon("git-branch", [
-	["line", {
-		x1: "6",
-		x2: "6",
-		y1: "3",
-		y2: "15",
-		key: "17qcm7"
-	}],
-	["circle", {
-		cx: "18",
-		cy: "6",
-		r: "3",
-		key: "1h7g24"
-	}],
-	["circle", {
-		cx: "6",
-		cy: "18",
-		r: "3",
-		key: "fqmcym"
-	}],
-	["path", {
-		d: "M18 9a9 9 0 0 1-9 9",
-		key: "n2h4wq"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Github = createLucideIcon("github", [["path", {
-	d: "M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4",
-	key: "tonef"
-}], ["path", {
-	d: "M9 18c-4.51 2-5-2-7-2",
-	key: "9comsn"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Globe = createLucideIcon("globe", [
-	["circle", {
-		cx: "12",
-		cy: "12",
-		r: "10",
-		key: "1mglay"
-	}],
-	["path", {
-		d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20",
-		key: "13o1zl"
-	}],
-	["path", {
-		d: "M2 12h20",
-		key: "9i4pu4"
-	}]
-]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -23803,48 +24284,6 @@ var Image = createLucideIcon("image", [
 	["path", {
 		d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",
 		key: "1xmnt7"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Key = createLucideIcon("key", [
-	["path", {
-		d: "m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4",
-		key: "g0fldk"
-	}],
-	["path", {
-		d: "m21 2-9.6 9.6",
-		key: "1j0ho8"
-	}],
-	["circle", {
-		cx: "7.5",
-		cy: "15.5",
-		r: "5.5",
-		key: "yqb3hr"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Layers = createLucideIcon("layers", [
-	["path", {
-		d: "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z",
-		key: "zw3jo"
-	}],
-	["path", {
-		d: "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12",
-		key: "1wduqc"
-	}],
-	["path", {
-		d: "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17",
-		key: "kqbvx6"
 	}]
 ]);
 /**
@@ -23962,46 +24401,6 @@ var Package = createLucideIcon("package", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var Palette = createLucideIcon("palette", [
-	["path", {
-		d: "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z",
-		key: "e79jfc"
-	}],
-	["circle", {
-		cx: "13.5",
-		cy: "6.5",
-		r: ".5",
-		fill: "currentColor",
-		key: "1okk4w"
-	}],
-	["circle", {
-		cx: "17.5",
-		cy: "10.5",
-		r: ".5",
-		fill: "currentColor",
-		key: "f64h9f"
-	}],
-	["circle", {
-		cx: "6.5",
-		cy: "12.5",
-		r: ".5",
-		fill: "currentColor",
-		key: "qy21gx"
-	}],
-	["circle", {
-		cx: "8.5",
-		cy: "7.5",
-		r: ".5",
-		fill: "currentColor",
-		key: "fotxhn"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var Pause = createLucideIcon("pause", [["rect", {
 	x: "14",
 	y: "3",
@@ -24036,16 +24435,6 @@ var PenLine = createLucideIcon("pen-line", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var Pen = createLucideIcon("pen", [["path", {
-	d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
-	key: "1a8usu"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var PiggyBank = createLucideIcon("piggy-bank", [
 	["path", {
 		d: "M11 17h3v2a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3a3.16 3.16 0 0 0 2-2h1a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1h-1a5 5 0 0 0-2-4V3a4 4 0 0 0-3.2 1.6l-.3.4H11a6 6 0 0 0-6 6v1a5 5 0 0 0 2 4v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1z",
@@ -24060,19 +24449,6 @@ var PiggyBank = createLucideIcon("piggy-bank", [
 		key: "1env43"
 	}]
 ]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Pin = createLucideIcon("pin", [["path", {
-	d: "M12 17v5",
-	key: "bb1du9"
-}], ["path", {
-	d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z",
-	key: "1nkz8b"
-}]]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -24153,26 +24529,6 @@ var RotateCcw = createLucideIcon("rotate-ccw", [["path", {
 	d: "M3 3v5h5",
 	key: "1xhq8a"
 }]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var Save = createLucideIcon("save", [
-	["path", {
-		d: "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
-		key: "1c8476"
-	}],
-	["path", {
-		d: "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7",
-		key: "1ydtos"
-	}],
-	["path", {
-		d: "M7 3v4a1 1 0 0 0 1 1h7",
-		key: "t51u73"
-	}]
-]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -24535,8 +24891,8 @@ var X = createLucideIcon("x", [["path", {
 	key: "d8bk6v"
 }]]);
 // src/components/Header.tsx
-var Header = ({ currentTab, setCurrentTab, openSyncModal, openInstallModal }) => {
-	const { theme, toggleTheme, user, isAuthenticating, signInWithGoogle, signOut, driveSyncInfo, notificationPermission, enableNotifications, notificationsList } = useApp();
+var Header = ({ currentTab, setCurrentTab, openSyncModal, openNotificationCenter }) => {
+	const { theme, toggleTheme, user, isAuthenticating, signInWithGoogle, signOut, driveSyncInfo, notificationsList } = useApp();
 	const todayStr = new Intl.DateTimeFormat("pt-BR", {
 		weekday: "long",
 		day: "numeric",
@@ -24576,7 +24932,7 @@ var Header = ({ currentTab, setCurrentTab, openSyncModal, openInstallModal }) =>
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => setCurrentTab("dashboard"),
 								className: `px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${currentTab === "dashboard" ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs" : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"}`,
-								children: "Dashboard"
+								children: "Início"
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => setCurrentTab("tarefas"),
@@ -24596,65 +24952,61 @@ var Header = ({ currentTab, setCurrentTab, openSyncModal, openInstallModal }) =>
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => setCurrentTab("configuracoes"),
 								className: `px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${currentTab === "configuracoes" ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs" : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"}`,
-								children: "Atualizações & Ajustes"
+								children: "Ajustes"
 							})
 						]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2 sm:gap-2.5",
+						className: "flex items-center gap-1.5 sm:gap-2",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: toggleTheme,
 								title: theme === "dark" ? "Mudar para tema Claro" : "Mudar para tema Escuro",
-								className: "p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer",
+								className: "p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer",
 								children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sun, { className: "w-4 h-4 text-amber-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Moon, { className: "w-4 h-4 text-zinc-600" })
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: openInstallModal,
-								title: "Instalar no celular / Gerar APK no GitHub",
-								className: "flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900 text-xs font-semibold transition-colors cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-4 h-4 text-indigo-600 dark:text-indigo-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "hidden sm:inline",
-									children: "Instalar App"
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: enableNotifications,
-								title: notificationPermission === "granted" ? "Notificações visuais ativas" : "Clique para ativar notificações no navegador",
-								className: `relative p-2 rounded-xl border transition-colors cursor-pointer ${notificationPermission === "granted" ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700" : "bg-amber-50 dark:bg-amber-950/40 text-amber-600 border-amber-200 dark:border-amber-800 animate-pulse"}`,
+								onClick: openNotificationCenter,
+								title: "Central de Notificações & Lembretes",
+								className: "relative p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4" }), unreadCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center",
+									className: "absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center",
 									children: unreadCount
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: openSyncModal,
 								title: "Gerenciar sincronização com Google Drive",
-								className: `flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${driveSyncInfo.status === "syncing" ? "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800" : driveSyncInfo.status === "cloud_newer" ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 animate-pulse" : user ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"}`,
+								className: `hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${driveSyncInfo.status === "syncing" ? "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800" : driveSyncInfo.status === "cloud_newer" ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 animate-pulse" : user ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"}`,
 								children: driveSyncInfo.status === "syncing" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: "w-3.5 h-3.5 animate-spin text-sky-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "hidden sm:inline",
+									className: "hidden lg:inline",
 									children: "Sincronizando..."
 								})] }) : driveSyncInfo.status === "cloud_newer" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CloudAlert, { className: "w-3.5 h-3.5 text-amber-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "hidden sm:inline",
+									className: "hidden lg:inline",
 									children: "Nuvem atualizada"
 								})] }) : user ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CloudCheck, { className: "w-3.5 h-3.5 text-emerald-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "hidden sm:inline",
+									className: "hidden lg:inline",
 									children: "Drive Conectado"
 								})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CloudOff, { className: "w-3.5 h-3.5 text-zinc-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "hidden sm:inline",
+									className: "hidden lg:inline",
 									children: "Nuvem Desconectada"
 								})] })
 							}),
 							user ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 rounded-xl p-1 pr-3",
+								className: "flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 rounded-xl p-1 sm:pr-3",
 								children: [
-									user.photoURL ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-										src: user.photoURL,
-										alt: user.displayName || "Usuário",
-										className: "w-7 h-7 rounded-lg object-cover"
-									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "w-7 h-7 rounded-lg bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center",
-										children: (user.displayName || user.email || "U")[0].toUpperCase()
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: openSyncModal,
+										title: "Ver status da conta",
+										className: "cursor-pointer",
+										children: user.photoURL ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+											src: user.photoURL,
+											alt: user.displayName || "Usuário",
+											className: "w-8 h-8 rounded-lg object-cover"
+										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-8 h-8 rounded-lg bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center",
+											children: (user.displayName || user.email || "U")[0].toUpperCase()
+										})
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "hidden lg:block text-left",
@@ -24669,41 +25021,51 @@ var Header = ({ currentTab, setCurrentTab, openSyncModal, openInstallModal }) =>
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 										onClick: signOut,
 										title: "Sair da conta Google",
-										className: "p-1 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors ml-1 cursor-pointer",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogOut, { className: "w-4 h-4" })
+										className: "p-1.5 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogOut, { className: "w-3.5 h-3.5" })
 									})
 								]
 							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: signInWithGoogle,
 								disabled: isAuthenticating,
-								className: "gsi-material-button inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-200 text-xs font-medium shadow-xs transition-colors cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
-									className: "w-4 h-4",
-									viewBox: "0 0 48 48",
-									xmlns: "http://www.w3.org/2000/svg",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-											fill: "#EA4335",
-											d: "M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-											fill: "#4285F4",
-											d: "M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-											fill: "#FBBC05",
-											d: "M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-											fill: "#34A853",
-											d: "M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-											fill: "none",
-											d: "M0 0h48v48H0z"
-										})
-									]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isAuthenticating ? "Conectando..." : "Conectar Google" })]
+								className: "gsi-material-button inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-200 text-xs font-medium shadow-xs transition-colors cursor-pointer shrink-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+										className: "w-4 h-4 shrink-0",
+										viewBox: "0 0 48 48",
+										xmlns: "http://www.w3.org/2000/svg",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+												fill: "#EA4335",
+												d: "M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+												fill: "#4285F4",
+												d: "M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+												fill: "#FBBC05",
+												d: "M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+												fill: "#34A853",
+												d: "M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+												fill: "none",
+												d: "M0 0h48v48H0z"
+											})
+										]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "hidden sm:inline",
+										children: isAuthenticating ? "Conectando..." : "Conectar Google"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "sm:hidden text-[11px] font-semibold",
+										children: isAuthenticating ? "..." : "Entrar"
+									})
+								]
 							})
 						]
 					})
@@ -24713,61 +25075,77 @@ var Header = ({ currentTab, setCurrentTab, openSyncModal, openInstallModal }) =>
 	});
 };
 // src/components/MobileNav.tsx
-var MobileNav = ({ currentTab, setCurrentTab, openSyncModal }) => {
+var MobileNav = ({ currentTab, setCurrentTab }) => {
 	const { tasks, driveSyncInfo } = useApp();
 	const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
 	const pendingToday = tasks.filter((t) => !t.completed && t.dueDate === todayStr).length;
+	const handleTabClick = (tab) => {
+		if (typeof navigator !== "undefined" && navigator.vibrate) try {
+			navigator.vibrate(8);
+		} catch {}
+		setCurrentTab(tab);
+	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", {
-		className: "md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-200 dark:border-zinc-800 pb-safe",
+		className: "md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800 shadow-xl",
+		style: { paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" },
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "flex items-center justify-around h-16 px-2",
+			className: "flex items-center justify-around h-15 px-2",
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-					onClick: () => setCurrentTab("dashboard"),
-					className: `flex flex-col items-center justify-center flex-1 py-1 transition-colors cursor-pointer ${currentTab === "dashboard" ? "text-indigo-600 dark:text-indigo-400 font-medium" : "text-zinc-500 dark:text-zinc-400"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LayoutGrid, { className: "w-5 h-5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[11px] mt-1",
-						children: "Dashboard"
+					onClick: () => handleTabClick("dashboard"),
+					className: "flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: `flex items-center justify-center px-4 py-1 rounded-full transition-colors ${currentTab === "dashboard" ? "bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`,
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LayoutGrid, { className: "w-5 h-5" })
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: `text-[10px] mt-0.5 tracking-tight ${currentTab === "dashboard" ? "font-bold text-indigo-600 dark:text-indigo-400" : "font-medium text-zinc-500 dark:text-zinc-400"}`,
+						children: "Início"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-					onClick: () => setCurrentTab("tarefas"),
-					className: `flex flex-col items-center justify-center flex-1 py-1 relative transition-colors cursor-pointer ${currentTab === "tarefas" ? "text-indigo-600 dark:text-indigo-400 font-medium" : "text-zinc-500 dark:text-zinc-400"}`,
+					onClick: () => handleTabClick("tarefas"),
+					className: "flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "relative",
+						className: `relative flex items-center justify-center px-4 py-1 rounded-full transition-colors ${currentTab === "tarefas" ? "bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`,
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SquareCheckBig, { className: "w-5 h-5" }), pendingToday > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "absolute -top-1 -right-2 bg-indigo-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center",
+							className: "absolute -top-1 right-2 bg-indigo-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs",
 							children: pendingToday
 						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[11px] mt-1",
+						className: `text-[10px] mt-0.5 tracking-tight ${currentTab === "tarefas" ? "font-bold text-indigo-600 dark:text-indigo-400" : "font-medium text-zinc-500 dark:text-zinc-400"}`,
 						children: "Tarefas"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-					onClick: () => setCurrentTab("financas"),
-					className: `flex flex-col items-center justify-center flex-1 py-1 transition-colors cursor-pointer ${currentTab === "financas" ? "text-indigo-600 dark:text-indigo-400 font-medium" : "text-zinc-500 dark:text-zinc-400"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleDollarSign, { className: "w-5 h-5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[11px] mt-1",
+					onClick: () => handleTabClick("financas"),
+					className: "flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: `flex items-center justify-center px-4 py-1 rounded-full transition-colors ${currentTab === "financas" ? "bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`,
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleDollarSign, { className: "w-5 h-5" })
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: `text-[10px] mt-0.5 tracking-tight ${currentTab === "financas" ? "font-bold text-indigo-600 dark:text-indigo-400" : "font-medium text-zinc-500 dark:text-zinc-400"}`,
 						children: "Finanças"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-					onClick: () => setCurrentTab("agenda"),
-					className: `flex flex-col items-center justify-center flex-1 py-1 transition-colors cursor-pointer ${currentTab === "agenda" ? "text-indigo-600 dark:text-indigo-400 font-medium" : "text-zinc-500 dark:text-zinc-400"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CalendarDays, { className: "w-5 h-5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[11px] mt-1",
+					onClick: () => handleTabClick("agenda"),
+					className: "flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: `flex items-center justify-center px-4 py-1 rounded-full transition-colors ${currentTab === "agenda" ? "bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`,
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CalendarDays, { className: "w-5 h-5" })
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: `text-[10px] mt-0.5 tracking-tight ${currentTab === "agenda" ? "font-bold text-indigo-600 dark:text-indigo-400" : "font-medium text-zinc-500 dark:text-zinc-400"}`,
 						children: "Agenda"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-					onClick: () => setCurrentTab("configuracoes"),
-					className: `flex flex-col items-center justify-center flex-1 py-1 transition-colors relative cursor-pointer ${currentTab === "configuracoes" ? "text-indigo-600 dark:text-indigo-400 font-medium" : "text-zinc-500 dark:text-zinc-400"}`,
+					onClick: () => handleTabClick("configuracoes"),
+					className: "flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "relative",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FolderGit2, { className: "w-5 h-5" }), driveSyncInfo.status === "cloud_newer" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" })]
+						className: `relative flex items-center justify-center px-4 py-1 rounded-full transition-colors ${currentTab === "configuracoes" ? "bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`,
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SlidersVertical, { className: "w-5 h-5" }), driveSyncInfo.status === "cloud_newer" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "absolute top-0.5 right-3 w-2 h-2 rounded-full bg-amber-500 animate-ping" })]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[11px] mt-1",
+						className: `text-[10px] mt-0.5 tracking-tight ${currentTab === "configuracoes" ? "font-bold text-indigo-600 dark:text-indigo-400" : "font-medium text-zinc-500 dark:text-zinc-400"}`,
 						children: "Ajustes"
 					})]
 				})
@@ -24779,78 +25157,84 @@ var MobileNav = ({ currentTab, setCurrentTab, openSyncModal }) => {
 var POSTIT_COLORS = [
 	{
 		label: "Amarelo",
-		hex: "#fef08a",
-		textDark: true
+		hex: "#fef08a"
 	},
 	{
 		label: "Verde",
-		hex: "#bbf7d0",
-		textDark: true
+		hex: "#bbf7d0"
 	},
 	{
 		label: "Azul",
-		hex: "#bae6fd",
-		textDark: true
+		hex: "#bae6fd"
 	},
 	{
 		label: "Lavanda",
-		hex: "#e9d5ff",
-		textDark: true
+		hex: "#e9d5ff"
 	},
 	{
 		label: "Pêssego",
-		hex: "#fed7aa",
-		textDark: true
-	},
-	{
-		label: "Cinza",
-		hex: "#f4f4f5",
-		textDark: true
+		hex: "#fed7aa"
 	}
 ];
 var DashboardView = ({ setCurrentTab }) => {
-	const { tasks, toggleTaskCompletion, transactions, calendarEvents, draftNotes, addDraftNote, updateDraftNote, deleteDraftNote, togglePinDraft, addTask, dashboardWidgets, toggleDashboardWidget, notificationPermission, enableNotifications, triggerTestNotification, notificationsList, dismissNotification, clearAllNotifications } = useApp();
-	const [isCustomizeOpen, setIsCustomizeOpen] = (0, import_react.useState)(false);
+	const { tasks, toggleTaskCompletion, addTask, transactions, calendarEvents, draftNotes, addDraftNote, updateDraftNote, deleteDraftNote, togglePinDraft, user, driveSyncInfo } = useApp();
+	const [quickTaskTitle, setQuickTaskTitle] = (0, import_react.useState)("");
+	const [isNewDraftOpen, setIsNewDraftOpen] = (0, import_react.useState)(false);
 	const [newDraftTitle, setNewDraftTitle] = (0, import_react.useState)("");
 	const [newDraftContent, setNewDraftContent] = (0, import_react.useState)("");
 	const [newDraftColor, setNewDraftColor] = (0, import_react.useState)("#fef08a");
-	const [isNewDraftOpen, setIsNewDraftOpen] = (0, import_react.useState)(false);
 	const [activeEditingDraftId, setActiveEditingDraftId] = (0, import_react.useState)(null);
 	const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
 	const todayTasks = tasks.filter((t) => t.dueDate === todayStr);
 	const pendingTodayTasks = todayTasks.filter((t) => !t.completed);
+	const completedTodayTasks = todayTasks.filter((t) => t.completed);
 	const currentMonth = (/* @__PURE__ */ new Date()).getMonth();
 	const currentYear = (/* @__PURE__ */ new Date()).getFullYear();
 	const monthlyTx = transactions.filter((tx) => {
 		const d = /* @__PURE__ */ new Date(tx.date + "T00:00:00");
 		return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
 	});
-	const totalIncome = monthlyTx.filter((tx) => tx.type === "receita").reduce((s, tx) => s + tx.amount, 0);
-	const totalExpense = monthlyTx.filter((tx) => tx.type === "despesa").reduce((s, tx) => s + tx.amount, 0);
-	const balance = totalIncome - totalExpense;
+	const balance = monthlyTx.filter((tx) => tx.type === "receita").reduce((s, tx) => s + tx.amount, 0) - monthlyTx.filter((tx) => tx.type === "despesa").reduce((s, tx) => s + tx.amount, 0);
+	const todayEvents = calendarEvents.filter((event) => {
+		if (event.start?.date === todayStr) return true;
+		if (event.start?.dateTime && event.start.dateTime.startsWith(todayStr)) return true;
+		return false;
+	});
 	const formatBRL = (val) => {
 		return new Intl.NumberFormat("pt-BR", {
 			style: "currency",
 			currency: "BRL"
 		}).format(val);
 	};
+	const handleQuickAddTask = (e) => {
+		e.preventDefault();
+		if (!quickTaskTitle.trim()) return;
+		addTask({
+			title: quickTaskTitle.trim(),
+			dueDate: todayStr,
+			priority: "medium",
+			category: "pessoal",
+			completed: false,
+			subtasks: []
+		});
+		setQuickTaskTitle("");
+	};
 	const handleCreateDraft = (e) => {
 		e.preventDefault();
 		if (!newDraftTitle.trim() && !newDraftContent.trim()) return;
 		addDraftNote({
-			title: newDraftTitle.trim() || "Rascunho sem título",
+			title: newDraftTitle.trim() || "Rascunho Rápido",
 			content: newDraftContent.trim(),
 			color: newDraftColor,
 			isPinned: false
 		});
 		setNewDraftTitle("");
 		setNewDraftContent("");
-		setNewDraftColor("#fef08a");
 		setIsNewDraftOpen(false);
 	};
 	const convertDraftToTask = (draft) => {
 		addTask({
-			title: draft.title || "Tarefa do Rascunho",
+			title: draft.title || "Tarefa do Post-it",
 			description: draft.content,
 			dueDate: todayStr,
 			priority: "medium",
@@ -24858,441 +25242,278 @@ var DashboardView = ({ setCurrentTab }) => {
 			completed: false,
 			subtasks: []
 		});
-		alert(`Rascunho "${draft.title}" convertido em tarefa para hoje com sucesso!`);
+		deleteDraftNote(draft.id);
 	};
-	const isWidgetVisible = (id) => dashboardWidgets.includes(id);
+	const firstName = user?.displayName ? user.displayName.split(" ")[0] : "Organizador";
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "space-y-6 pb-20",
+		className: "space-y-5 animate-in fade-in duration-300",
 		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-xs",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-3",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LayoutGrid, { className: "w-5 h-5" })
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-							className: "text-xl font-bold text-zinc-900 dark:text-zinc-100",
-							children: "Dashboard Modular"
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800",
-							children: "Personalizável"
-						})]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "text-xs text-zinc-500 dark:text-zinc-400",
-						children: "Visão geral interativa: configure seus módulos e anote rascunhos ao vivo"
-					})] })]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-2 flex-wrap",
-					children: [
-						notificationPermission !== "granted" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: enableNotifications,
-							className: "flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer animate-pulse",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ativar Notificações" })]
-						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: triggerTestNotification,
-							title: "Testar notificação visual silenciosa",
-							className: "flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 text-xs font-medium border border-zinc-200 dark:border-zinc-700 transition-colors cursor-pointer",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-3.5 h-3.5 text-indigo-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Testar Notificação" })]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => setIsCustomizeOpen(!isCustomizeOpen),
-							className: `flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${isCustomizeOpen ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100" : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50"}`,
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SlidersVertical, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isCustomizeOpen ? "Fechar Módulos" : "Personalizar Módulos" })]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => setCurrentTab("configuracoes"),
-							className: "flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-xs font-semibold border border-indigo-200 dark:border-indigo-900 transition-colors cursor-pointer",
-							title: "Verificar atualizações do app no GitHub e configurações",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FolderGit2, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "hidden sm:inline",
-								children: "Atualizações & Ajustes"
-							})]
-						})
-					]
-				})]
-			}),
-			isCustomizeOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/80 rounded-3xl p-5 animate-in slide-in-from-top duration-200",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center justify-between mb-3",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-200",
-						children: "Escolha quais módulos deseja exibir no seu Dashboard:"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-xs text-zinc-500",
-						children: "Clique para ativar/ocultar"
-					})]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "flex flex-wrap gap-2",
-					children: [
-						{
-							id: "reminders",
-							label: "Central de Lembretes & Notificações"
-						},
-						{
-							id: "tasks",
-							label: "Tarefas de Hoje"
-						},
-						{
-							id: "schedule",
-							label: "Próximos Compromissos (Agenda)"
-						},
-						{
-							id: "scratchpad",
-							label: "Bloco de Rascunhos & Post-its"
-						},
-						{
-							id: "finance",
-							label: "Resumo Financeiro"
-						}
-					].map((widget) => {
-						const active = isWidgetVisible(widget.id);
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => toggleDashboardWidget(widget.id),
-							className: `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${active ? "bg-indigo-600 text-white shadow-xs" : "bg-white dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700"}`,
-							children: [active ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3.5 h-3.5" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EyeOff, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: widget.label })]
-						}, widget.id);
-					})
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "grid grid-cols-1 lg:grid-cols-3 gap-6",
-				children: [
-					isWidgetVisible("reminders") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "lg:col-span-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-3",
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 rounded-3xl p-5 sm:p-6 text-white shadow-lg shadow-indigo-500/15 relative overflow-hidden",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-1",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2",
+							className: "flex items-center gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "text-xl sm:text-2xl font-bold tracking-tight",
 								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-5 h-5 text-amber-500" }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-										className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-										children: "Lembretes Ativos & Notificações Visuais"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "text-xs text-zinc-400",
-										children: [
-											"(",
-											notificationsList.length,
-											" alertas silenciosos recentes)"
-										]
-									})
+									"Olá, ",
+									firstName,
+									"! 👋"
 								]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white/20 backdrop-blur-md text-white",
+								children: "Hoje"
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-indigo-100/90 leading-relaxed max-w-lg",
+							children: pendingTodayTasks.length === 0 ? "Todas as tarefas de hoje foram concluídas! Aproveite seu tempo." : `Você tem ${pendingTodayTasks.length} ${pendingTodayTasks.length === 1 ? "tarefa pendente" : "tarefas pendentes"} para hoje.`
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "flex items-center gap-2 self-start sm:self-center shrink-0",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+							className: "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-white border border-white/20",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: `w-2 h-2 rounded-full ${driveSyncInfo.status === "synced" ? "bg-emerald-400" : "bg-amber-300"}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: user ? "Google Drive Conectado" : "Armazenamento Local" })]
+						})
+					})]
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "grid grid-cols-1 sm:grid-cols-3 gap-3",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						onClick: () => setCurrentTab("tarefas"),
+						className: "p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-xs hover:border-indigo-400 dark:hover:border-indigo-600 transition-all cursor-pointer flex items-center justify-between group",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "space-y-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] font-bold uppercase tracking-wider text-zinc-400 block",
+								children: "Tarefas de Hoje"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2",
-								children: [notificationsList.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: clearAllNotifications,
-									className: "text-xs text-zinc-400 hover:text-rose-500 transition-colors cursor-pointer",
-									children: "Limpar todos"
-								}), notificationPermission !== "granted" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: enableNotifications,
-									className: "text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 border border-amber-200 dark:border-amber-800",
-									children: "Permitir no Navegador"
+								className: "flex items-baseline gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "text-2xl font-black text-zinc-900 dark:text-zinc-100",
+									children: [
+										completedTodayTasks.length,
+										"/",
+										todayTasks.length
+									]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xs text-zinc-500 font-medium",
+									children: "concluídas"
 								})]
 							})]
-						}), notificationsList.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-850/50 border border-zinc-100 dark:border-zinc-800 text-center text-xs text-zinc-500",
-							children: "Nenhum alerta recente. O sistema monitora tarefas com horários e compromissos da agenda e emitirá notificações visuais silenciosas automaticamente."
-						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5",
-							children: notificationsList.slice(0, 6).map((notif) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 text-xs flex items-start justify-between gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "font-semibold text-zinc-900 dark:text-zinc-100",
-										children: notif.title
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-zinc-600 dark:text-zinc-400 text-[11px] mt-0.5",
-										children: notif.body
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[10px] text-zinc-400 mt-1 block",
-										children: new Date(notif.timestamp).toLocaleTimeString("pt-BR", {
-											hour: "2-digit",
-											minute: "2-digit"
-										})
-									})
-								] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => dismissNotification(notif.id),
-									className: "text-zinc-400 hover:text-zinc-600 p-0.5 cursor-pointer",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
-								})]
-							}, notif.id))
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-5 h-5" })
 						})]
 					}),
-					isWidgetVisible("tasks") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4",
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						onClick: () => setCurrentTab("financas"),
+						className: "p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-xs hover:border-emerald-400 dark:hover:border-emerald-600 transition-all cursor-pointer flex items-center justify-between group",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
+							className: "space-y-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] font-bold uppercase tracking-wider text-zinc-400 block",
+								children: "Saldo do Mês"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex items-baseline gap-2",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: `text-2xl font-black ${balance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`,
+									children: formatBRL(balance)
+								})
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Wallet, { className: "w-5 h-5" })
+						})]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						onClick: () => setCurrentTab("agenda"),
+						className: "p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-xs hover:border-violet-400 dark:hover:border-violet-600 transition-all cursor-pointer flex items-center justify-between group",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "space-y-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] font-bold uppercase tracking-wider text-zinc-400 block",
+								children: "Compromissos Hoje"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-baseline gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-2xl font-black text-zinc-900 dark:text-zinc-100",
+									children: todayEvents.length
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xs text-zinc-500 font-medium",
+									children: "na agenda"
+								})]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-2xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Calendar, { className: "w-5 h-5" })
+						})]
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						onClick: () => setCurrentTab("financas"),
+						className: "inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-500 text-xs font-semibold text-zinc-800 dark:text-zinc-200 shrink-0 shadow-xs transition-colors cursor-pointer",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Camera, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Escanear Nota Fiscal (IA)" })]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						onClick: () => setIsNewDraftOpen(true),
+						className: "inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 text-xs font-semibold text-zinc-800 dark:text-zinc-200 shrink-0 shadow-xs transition-colors cursor-pointer",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyNote, { className: "w-4 h-4 text-amber-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Novo Post-it" })]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						onClick: () => setCurrentTab("agenda"),
+						className: "inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-violet-500 text-xs font-semibold text-zinc-800 dark:text-zinc-200 shrink-0 shadow-xs transition-colors cursor-pointer",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Calendar, { className: "w-4 h-4 text-violet-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ver Agenda Completa" })]
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "grid grid-cols-1 lg:grid-cols-3 gap-5",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-3",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-2",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-5 h-5 text-indigo-600" }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-										className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-										children: "Tarefas de Hoje"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "text-xs text-zinc-400",
-										children: [
-											"(",
-											pendingTodayTasks.length,
-											" pendentes)"
-										]
-									})
-								]
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-5 h-5 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+									className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
+									children: "Foco do Dia (Tarefas)"
+								})]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: () => setCurrentTab("tarefas"),
 								className: "text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ver todas" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRight, { className: "w-3.5 h-3.5" })]
 							})]
-						}), todayTasks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-8 text-center text-zinc-400 space-y-2 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs font-medium",
-								children: "Nenhuma tarefa marcada para hoje."
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+							onSubmit: handleQuickAddTask,
+							className: "flex gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								type: "text",
+								value: quickTaskTitle,
+								onChange: (e) => setQuickTaskTitle(e.target.value),
+								placeholder: "Adicionar tarefa rápida para hoje...",
+								className: "flex-1 px-3.5 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setCurrentTab("tarefas"),
-								className: "text-xs font-semibold text-indigo-600 hover:underline cursor-pointer",
-								children: "+ Adicionar tarefa"
+								type: "submit",
+								disabled: !quickTaskTitle.trim(),
+								className: "px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 shrink-0",
+								children: "Adicionar"
 							})]
+						}),
+						todayTasks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "py-8 text-center text-zinc-400 dark:text-zinc-500 space-y-1",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-8 h-8 mx-auto stroke-1 opacity-40 mb-1" }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-medium",
+									children: "Nenhuma tarefa marcada para hoje."
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-[11px]",
+									children: "Digite acima para adicionar um novo afazer."
+								})
+							]
 						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "space-y-2",
 							children: todayTasks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3 group",
+								onClick: () => toggleTaskCompletion(t.id),
+								className: `p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer select-none ${t.completed ? "bg-zinc-50/60 dark:bg-zinc-850/40 border-zinc-100 dark:border-zinc-800/60 opacity-60" : "bg-white dark:bg-zinc-800/40 border-zinc-200/80 dark:border-zinc-700/80 hover:border-indigo-400"}`,
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex items-center gap-3 min-w-0",
 									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-										onClick: () => toggleTaskCompletion(t.id),
-										className: `w-5 h-5 rounded-md flex items-center justify-center border transition-all cursor-pointer ${t.completed ? "bg-emerald-500 border-emerald-500 text-white" : "border-zinc-300 dark:border-zinc-700 text-transparent"}`,
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5 stroke-[3]" })
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "min-w-0",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: `text-xs sm:text-sm font-semibold truncate ${t.completed ? "line-through text-zinc-400" : "text-zinc-900 dark:text-zinc-100"}`,
-											children: t.title
-										}), t.dueTime && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-1 text-[11px] text-zinc-400",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-3 h-3 text-indigo-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: t.dueTime })]
-										})]
+										type: "button",
+										className: `w-5 h-5 rounded-lg flex items-center justify-center transition-colors shrink-0 ${t.completed ? "bg-emerald-600 text-white" : "border border-zinc-300 dark:border-zinc-600"}`,
+										children: t.completed && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3.5 h-3.5" })
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: `text-xs font-medium truncate ${t.completed ? "line-through text-zinc-400 dark:text-zinc-500" : "text-zinc-800 dark:text-zinc-200"}`,
+										children: t.title
 									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: `text-[10px] font-semibold px-2 py-0.5 rounded-full ${t.priority === "high" ? "bg-rose-50 text-rose-600 border border-rose-200" : t.priority === "medium" ? "bg-amber-50 text-amber-600 border border-amber-200" : "bg-zinc-100 text-zinc-600"}`,
-									children: t.priority === "high" ? "Alta" : t.priority === "medium" ? "Média" : "Baixa"
+								}), t.dueTime && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "text-[10px] font-semibold text-zinc-400 flex items-center gap-1 shrink-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-3 h-3" }), t.dueTime]
 								})]
 							}, t.id))
-						})]
-					}),
-					isWidgetVisible("finance") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4",
+						})
+					]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 flex flex-col justify-between",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-3",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
+							className: "flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-3",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Wallet, { className: "w-5 h-5 text-emerald-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyNote, { className: "w-5 h-5 text-amber-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
 									className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-									children: "Finanças do Mês"
+									children: "Post-its Rápidos"
 								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setCurrentTab("financas"),
-								className: "text-xs font-semibold text-emerald-600 hover:underline flex items-center gap-1 cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Painel" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRight, { className: "w-3.5 h-3.5" })]
-							})]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "space-y-3",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-800",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-[11px] font-semibold text-zinc-400 uppercase",
-									children: "Saldo Líquido Atual"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: `text-xl font-bold tracking-tight mt-0.5 ${balance >= 0 ? "text-zinc-900 dark:text-zinc-100" : "text-rose-600"}`,
-									children: formatBRL(balance)
-								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "grid grid-cols-2 gap-2 text-xs",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-zinc-500 block",
-										children: "Receitas"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "font-bold text-emerald-600 text-sm",
-										children: formatBRL(totalIncome)
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "p-3 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-zinc-500 block",
-										children: "Despesas"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "font-bold text-rose-600 text-sm",
-										children: formatBRL(totalExpense)
-									})]
-								})]
-							})]
-						})]
-					}),
-					isWidgetVisible("schedule") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "lg:col-span-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Calendar, { className: "w-5 h-5 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-									className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-									children: "Google Agenda"
-								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setCurrentTab("agenda"),
-								className: "text-xs font-semibold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ver agenda" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRight, { className: "w-3.5 h-3.5" })]
-							})]
-						}), calendarEvents.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-6 text-center text-zinc-400 space-y-2 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs",
-								children: "Nenhum evento agendado para os próximos dias."
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setCurrentTab("agenda"),
-								className: "text-xs font-semibold text-indigo-600 hover:underline cursor-pointer",
-								children: "+ Agendar compromisso"
-							})]
-						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "space-y-2",
-							children: calendarEvents.slice(0, 4).map((ev) => {
-								const startTime = ev.start?.dateTime ? new Date(ev.start.dateTime).toLocaleTimeString("pt-BR", {
-									hour: "2-digit",
-									minute: "2-digit"
-								}) : "Dia todo";
-								const dateFormatted = ev.start?.dateTime ? new Date(ev.start.dateTime).toLocaleDateString("pt-BR", {
-									day: "numeric",
-									month: "short"
-								}) : ev.start?.date || "";
-								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "p-3 rounded-xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 text-xs",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center justify-between font-semibold text-zinc-900 dark:text-zinc-100",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "truncate pr-2",
-											children: ev.summary
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-indigo-600 dark:text-indigo-400 shrink-0",
-											children: startTime
-										})]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "text-[11px] text-zinc-400 mt-0.5 block",
-										children: [
-											dateFormatted,
-											" ",
-											ev.location ? `• ${ev.location}` : ""
-										]
-									})]
-								}, ev.id);
-							})
-						})]
-					}),
-					isWidgetVisible("scratchpad") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyNote, { className: "w-5 h-5 text-amber-500" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-									className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-									children: "Bloco de Rascunhos & Post-its"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-[11px] text-zinc-400",
-									children: "Modifique livremente suas ideias com cores de destaque e converta em tarefas"
-								})] })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: () => setIsNewDraftOpen(true),
-								className: "flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Novo Post-it" })]
+								className: "p-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer",
+								title: "Novo Post-it",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" })
 							})]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "grid grid-cols-1 sm:grid-cols-2 gap-3",
-							children: draftNotes.map((draft) => {
-								const isEditing = activeEditingDraftId === draft.id;
-								const noteColor = draft.color || "#fef08a";
-								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									style: { backgroundColor: noteColor },
-									className: "p-4 rounded-2xl border border-black/10 text-zinc-900 shadow-xs flex flex-col justify-between group transition-transform hover:scale-[1.01] relative",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center justify-between gap-2 mb-1.5",
-										children: [isEditing ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-											type: "text",
-											value: draft.title,
-											onChange: (e) => updateDraftNote(draft.id, { title: e.target.value }),
-											className: "text-xs font-bold w-full bg-white/80 px-2 py-1 rounded border border-zinc-300 text-zinc-900 focus:outline-none"
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+						}), draftNotes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "py-8 text-center text-zinc-400 dark:text-zinc-500 space-y-1",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyNote, { className: "w-8 h-8 mx-auto stroke-1 opacity-40 mb-1" }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-medium",
+									children: "Nenhum rascunho ativo."
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-[11px]",
+									children: "Guarde notas e pensamentos livres."
+								})
+							]
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-2.5 max-h-[320px] overflow-y-auto pr-1",
+							children: draftNotes.slice(0, 4).map((draft) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								style: { backgroundColor: draft.color || "#fef08a" },
+								className: "p-3 rounded-2xl border border-black/10 text-zinc-900 shadow-xs flex flex-col justify-between group relative",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-1 mb-1",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
 											className: "text-xs font-bold text-zinc-900 truncate",
 											children: draft.title
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-1 shrink-0",
-											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "relative group/color",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-														title: "Mudar cor do post-it",
-														className: "p-1 rounded opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-900 cursor-pointer",
-														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Palette, { className: "w-3 h-3" })
-													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-														className: "absolute right-0 top-6 hidden group-hover/color:flex bg-white dark:bg-zinc-800 p-1.5 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 gap-1 z-30",
-														children: POSTIT_COLORS.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-															type: "button",
-															onClick: () => updateDraftNote(draft.id, { color: c.hex }),
-															className: "w-4 h-4 rounded-full border border-black/20 cursor-pointer hover:scale-125 transition-transform",
-															style: { backgroundColor: c.hex }
-														}, c.hex))
-													})]
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													onClick: () => togglePinDraft(draft.id),
-													title: draft.isPinned ? "Desafixar" : "Fixar",
-													className: `p-1 rounded cursor-pointer ${draft.isPinned ? "text-amber-800 font-bold" : "text-zinc-500 opacity-0 group-hover:opacity-100"}`,
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pin, { className: "w-3 h-3" })
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													onClick: () => setActiveEditingDraftId(isEditing ? null : draft.id),
-													title: "Editar texto",
-													className: "text-zinc-500 hover:text-zinc-900 p-1 opacity-0 group-hover:opacity-100 cursor-pointer",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pen, { className: "w-3 h-3" })
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													onClick: () => deleteDraftNote(draft.id),
-													title: "Excluir rascunho",
-													className: "text-zinc-500 hover:text-rose-600 p-1 opacity-0 group-hover:opacity-100 cursor-pointer",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3 h-3" })
-												})
-											]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												onClick: () => deleteDraftNote(draft.id),
+												className: "p-0.5 text-zinc-600 hover:text-rose-700 cursor-pointer",
+												title: "Excluir",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3 h-3" })
+											})
 										})]
-									}), isEditing ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
-										rows: 4,
-										value: draft.content,
-										onChange: (e) => updateDraftNote(draft.id, { content: e.target.value }),
-										className: "w-full text-xs bg-white/90 p-2 rounded-xl border border-zinc-300 text-zinc-900 resize-none focus:outline-none"
-									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-xs text-zinc-800 whitespace-pre-wrap leading-relaxed line-clamp-4 font-normal",
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs text-zinc-800 whitespace-pre-wrap leading-relaxed line-clamp-3",
 										children: draft.content || "(Vazio)"
-									})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "mt-3 pt-2 border-t border-black/10 flex items-center justify-between text-[10px] text-zinc-600",
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "mt-2 pt-1.5 border-t border-black/10 flex items-center justify-between text-[10px] text-zinc-600",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: new Date(draft.updatedAt).toLocaleDateString("pt-BR") }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 											onClick: () => convertDraftToTask(draft),
 											className: "font-bold text-zinc-900 hover:underline cursor-pointer",
 											children: "+ Criar Tarefa"
 										})]
-									})]
-								}, draft.id);
-							})
+									})
+								]
+							}, draft.id))
 						})]
 					})
-				]
+				})]
 			}),
 			isNewDraftOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200",
@@ -25305,7 +25526,7 @@ var DashboardView = ({ setCurrentTab }) => {
 							children: "Novo Post-it / Rascunho"
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							onClick: () => setIsNewDraftOpen(false),
-							className: "p-1 rounded-full text-zinc-400 hover:text-zinc-600",
+							className: "p-1 rounded-full text-zinc-400 hover:text-zinc-600 cursor-pointer",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-5 h-5" })
 						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
@@ -25324,18 +25545,18 @@ var DashboardView = ({ setCurrentTab }) => {
 							})] }),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
 								className: "block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1",
-								children: "Conteúdo do Post-it"
+								children: "Conteúdo"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
 								rows: 4,
 								required: true,
-								placeholder: "Digite seus pensamentos ou rascunhos livremente...",
+								placeholder: "Escreva seu pensamento ou rascunho...",
 								value: newDraftContent,
 								onChange: (e) => setNewDraftContent(e.target.value),
 								className: "w-full px-3 py-2 text-xs rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none resize-none"
 							})] }),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
 								className: "block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5",
-								children: "Cor do Post-it"
+								children: "Cor"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: "flex items-center gap-2",
 								children: POSTIT_COLORS.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
@@ -25525,15 +25746,15 @@ var TasksView = () => {
 		className: "space-y-6 pb-20",
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "bg-gradient-to-br from-indigo-900 via-indigo-800 to-violet-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl shadow-indigo-950/10 relative overflow-hidden",
+				className: "bg-gradient-to-br from-indigo-900 via-indigo-800 to-violet-900 text-white rounded-3xl p-4 sm:p-8 shadow-xl shadow-indigo-950/10 relative overflow-hidden",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute right-0 top-0 bottom-0 w-1/3 opacity-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6",
+					className: "relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "space-y-2",
+						className: "space-y-1.5 sm:space-y-2",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-medium text-indigo-200",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3.5 h-3.5 text-amber-300" }), "Gestor de Tarefas com Lembretes"]
+								className: "inline-flex items-center gap-2 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-white/10 backdrop-blur-md text-[11px] sm:text-xs font-medium text-indigo-200",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3 h-3 text-amber-300" }), "Gestor de Tarefas com Lembretes"]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
 								className: "text-2xl sm:text-3xl font-bold tracking-tight",
@@ -25626,9 +25847,9 @@ var TasksView = () => {
 				})]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4",
+				className: "flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-2xl overflow-x-auto",
+					className: "flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-2xl overflow-x-auto no-scrollbar",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => setActiveFilter("today"),
@@ -26179,7 +26400,8 @@ var TasksView = () => {
 */
 async function scanReceiptWithAI(file) {
 	const base64 = await fileToBase64(file);
-	const res = await fetch(`/api/gemini/parse-receipt`, {
+	const endpoint = `${typeof window !== "undefined" && (window.location.origin.includes("localhost") || window.location.protocol === "capacitor:") ? "https://ais-pre-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app" : ""}/api/gemini/parse-receipt`;
+	const res = await fetch(endpoint, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
@@ -26736,27 +26958,40 @@ var FinanceView = () => {
 		className: "space-y-6 pb-20",
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xs",
+				className: "flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xs",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-3",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Wallet, { className: "w-5 h-5" })
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-xs font-semibold text-zinc-400 uppercase tracking-wider",
-						children: "Controle Financeiro"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "flex items-center gap-2",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-							className: "text-xl font-bold text-zinc-900 dark:text-zinc-100",
+					className: "flex items-center justify-between",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Wallet, { className: "w-5 h-5" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block",
+							children: "Controle Financeiro"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+							className: "text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100",
 							children: capitalizedMonth
-						})
-					})] })]
+						})] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1 sm:hidden",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: prevMonth,
+							title: "Mês anterior",
+							className: "p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronLeft, { className: "w-4 h-4" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: nextMonth,
+							title: "Próximo mês",
+							className: "p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4" })
+						})]
+					})]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "flex items-center gap-2 flex-wrap",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1",
+							className: "hidden sm:flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1",
 							children: [
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 									onClick: prevMonth,
@@ -26797,93 +27032,93 @@ var FinanceView = () => {
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => setIsScannerOpen(true),
 							title: "Escanear Nota Fiscal ou Cupom com Inteligência Artificial",
-							className: "flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-amber-300 animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ler Nota com IA" })]
+							className: "flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3.5 h-3.5 text-amber-300 animate-pulse shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ler Nota" })]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => setIsAddModalOpen(true),
-							className: "flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Nova Transação" })]
+							className: "flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Nova" })]
 						})
 					]
 				})]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4",
+				className: "grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4",
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs",
+						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2",
+								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-semibold uppercase tracking-wider",
-									children: "Saldo Líquido"
+									className: "text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate",
+									children: "Saldo"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: `w-8 h-8 rounded-xl flex items-center justify-center ${balance >= 0 ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600" : "bg-rose-50 dark:bg-rose-950/40 text-rose-600"}`,
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DollarSign, { className: "w-4 h-4" })
+									className: `w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${balance >= 0 ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600" : "bg-rose-50 dark:bg-rose-950/40 text-rose-600"}`,
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DollarSign, { className: "w-3.5 h-3.5 sm:w-4 sm:h-4" })
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: `text-2xl font-bold tracking-tight ${balance >= 0 ? "text-zinc-900 dark:text-zinc-100" : "text-rose-600 dark:text-rose-400"}`,
+								className: `text-lg sm:text-2xl font-bold tracking-tight truncate tabular-nums ${balance >= 0 ? "text-zinc-900 dark:text-zinc-100" : "text-rose-600 dark:text-rose-400"}`,
 								children: formatBRL(balance)
 							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "mt-2 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400",
-								children: [balance >= 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "mt-1 flex items-center gap-1 text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400",
+								children: balance >= 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 									className: "text-emerald-600 font-semibold flex items-center gap-0.5",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrendingUp, { className: "w-3.5 h-3.5" }), "Superávit"]
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrendingUp, { className: "w-3 h-3" }), "Superávit"]
 								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 									className: "text-rose-600 font-semibold flex items-center gap-0.5",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrendingDown, { className: "w-3.5 h-3.5" }), "Déficit"]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "neste mês" })]
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrendingDown, { className: "w-3 h-3" }), "Déficit"]
+								})
 							})
 						]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs",
+						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2",
+								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-semibold uppercase tracking-wider",
+									className: "text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate",
 									children: "Receitas"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowUpRight, { className: "w-4 h-4" })
+									className: "w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowUpRight, { className: "w-3.5 h-3.5 sm:w-4 sm:h-4" })
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400",
+								className: "text-lg sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 truncate tabular-nums",
 								children: formatBRL(totalIncome)
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-								className: "mt-2 text-xs text-zinc-500 dark:text-zinc-400",
+								className: "mt-1 text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400",
 								children: [monthlyTransactions.filter((t) => t.type === "receita").length, " entrada(s)"]
 							})
 						]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs",
+						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2",
+								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-semibold uppercase tracking-wider",
+									className: "text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate",
 									children: "Despesas"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowDownRight, { className: "w-4 h-4" })
+									className: "w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowDownRight, { className: "w-3.5 h-3.5 sm:w-4 sm:h-4" })
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400",
+								className: "text-lg sm:text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400 truncate tabular-nums",
 								children: formatBRL(totalExpense)
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "mt-2 text-[11px] text-zinc-400 flex items-center gap-2",
+								className: "mt-1 text-[10px] sm:text-[11px] text-zinc-400 flex items-center gap-1.5 truncate",
 								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Fixas: ", formatBRL(fixedExpenses)] }),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Fix: ", formatBRL(fixedExpenses)] }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "•" }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Var: ", formatBRL(variableExpenses)] })
 								]
@@ -26891,24 +27126,24 @@ var FinanceView = () => {
 						]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs",
+						className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2",
+								className: "flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-semibold uppercase tracking-wider",
-									children: "Taxa Poupada"
+									className: "text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate",
+									children: "Poupança"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PiggyBank, { className: "w-4 h-4" })
+									className: "w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center shrink-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PiggyBank, { className: "w-3.5 h-3.5 sm:w-4 sm:h-4" })
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400",
+								className: "text-lg sm:text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400 tabular-nums",
 								children: [savingsRate, "%"]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-3",
+								className: "w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-2",
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 									className: "bg-indigo-600 h-full rounded-full transition-all",
 									style: { width: `${Math.min(100, savingsRate)}%` }
@@ -27678,21 +27913,21 @@ var AgendaView = () => {
 						children: "Sincronização em tempo real de compromissos e tarefas"
 					})] })]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-2",
+					className: "flex items-center gap-2 flex-wrap",
 					children: [
 						user ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							onClick: () => refreshCalendar(),
 							disabled: isLoadingCalendar,
-							className: "p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer",
+							className: "p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0",
 							title: "Atualizar Google Agenda",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-4 h-4 ${isLoadingCalendar ? "animate-spin" : ""}` })
 						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							onClick: signInWithGoogle,
-							className: "text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer",
-							children: "Conectar Google Agenda"
+							className: "text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer shrink-0",
+							children: "Conectar Agenda"
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold",
+							className: "flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold shrink-0",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => setViewMode("agenda"),
 								className: `px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${viewMode === "agenda" ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs" : "text-zinc-600 dark:text-zinc-400"}`,
@@ -27705,11 +27940,8 @@ var AgendaView = () => {
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => setIsAddModalOpen(true),
-							className: "flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "hidden sm:inline",
-								children: "Novo Evento"
-							})]
+							className: "flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Novo Evento" })]
 						})
 					]
 				})]
@@ -28058,6 +28290,7 @@ var AgendaView = () => {
 };
 // src/services/githubUpdateService.ts
 var CURRENT_APP_VERSION = "v1.1.0";
+var DEFAULT_GITHUB_REPO = "souoleandro/meu-vida-organizada";
 var STORAGE_KEYS = {
 	REPO: "vo_github_repo",
 	TOKEN: "vo_github_token",
@@ -28071,11 +28304,6 @@ function getStoredGitHubConfig() {
 		autoCheck: localStorage.getItem(STORAGE_KEYS.AUTO_CHECK) !== "false",
 		lastResult: loadLastResult()
 	};
-}
-function saveGitHubConfig(repo, token, autoCheck) {
-	localStorage.setItem(STORAGE_KEYS.REPO, repo.trim());
-	localStorage.setItem(STORAGE_KEYS.TOKEN, token.trim());
-	localStorage.setItem(STORAGE_KEYS.AUTO_CHECK, String(autoCheck));
 }
 function loadLastResult() {
 	try {
@@ -28227,60 +28455,43 @@ async function refreshAppCache() {
 	}
 }
 // src/components/Settings/SettingsView.tsx
-var SettingsView = ({ openSyncModal, openInstallModal }) => {
-	const { theme, toggleTheme, user, driveSyncInfo, tasks, transactions, financialGoals, draftNotes, exportBackupJson, importBackupJson, notificationPermission, enableNotifications } = useApp();
-	const [repoInput, setRepoInput] = (0, import_react.useState)("");
-	const [tokenInput, setTokenInput] = (0, import_react.useState)("");
-	const [autoCheck, setAutoCheck] = (0, import_react.useState)(true);
-	const [showTokenField, setShowTokenField] = (0, import_react.useState)(false);
-	const [isSavedNotice, setIsSavedNotice] = (0, import_react.useState)(false);
+var SettingsView = ({ openSyncModal, openNotificationCenter }) => {
+	const { theme, toggleTheme, user, signInWithGoogle, signOut, driveSyncInfo, syncToDriveNow, restoreFromDriveNow, tasks, transactions, financialGoals, draftNotes, exportBackupJson, importBackupJson, notificationPermission, confirmDestructiveAction } = useApp();
 	const [isChecking, setIsChecking] = (0, import_react.useState)(false);
 	const [isRefreshingCache, setIsRefreshingCache] = (0, import_react.useState)(false);
 	const [updateResult, setUpdateResult] = (0, import_react.useState)(null);
-	const [showChangelog, setShowChangelog] = (0, import_react.useState)(true);
-	const [showCommits, setShowCommits] = (0, import_react.useState)(false);
-	const fileInputRef = import_react.useRef(null);
+	const [isSyncing, setIsSyncing] = (0, import_react.useState)(false);
+	const fileInputRef = (0, import_react.useRef)(null);
 	(0, import_react.useEffect)(() => {
 		const config = getStoredGitHubConfig();
-		setRepoInput(config.repo);
-		setTokenInput(config.token);
-		setAutoCheck(config.autoCheck);
 		setUpdateResult(config.lastResult);
-		if (config.autoCheck && !config.lastResult) handleCheckUpdates(config.repo, config.token);
+		if (config.autoCheck && !config.lastResult) handleCheckUpdates();
 	}, []);
-	const handleSaveConfig = () => {
-		saveGitHubConfig(repoInput, tokenInput, autoCheck);
-		setIsSavedNotice(true);
-		setTimeout(() => setIsSavedNotice(false), 2500);
-	};
-	const handleCheckUpdates = async (repoToUse, tokenToUse) => {
-		const targetRepo = repoToUse || repoInput || "souoleandro/meu-vida-organizada";
-		const targetToken = tokenToUse !== void 0 ? tokenToUse : tokenInput;
+	const handleCheckUpdates = async () => {
 		setIsChecking(true);
 		try {
-			const result = await checkForGitHubUpdates(targetRepo, targetToken, CURRENT_APP_VERSION);
+			const result = await checkForGitHubUpdates(DEFAULT_GITHUB_REPO, void 0, CURRENT_APP_VERSION);
 			setUpdateResult(result);
 		} catch (err) {
-			console.error("Falha ao verificar atualizações no GitHub:", err);
+			console.warn("Falha ao verificar atualizações:", err);
 		} finally {
 			setIsChecking(false);
 		}
 	};
 	const handleHardRefresh = async () => {
-		if (confirm("Deseja recarregar o aplicativo e limpar o cache local para puxar a versão mais recente?")) {
+		if (confirm("Deseja recarregar o aplicativo para buscar as últimas atualizações salvas?")) {
 			setIsRefreshingCache(true);
 			await refreshAppCache();
 		}
 	};
-	const approxStorageBytes = (() => {
+	const handleSyncNow = async () => {
+		setIsSyncing(true);
 		try {
-			let total = 0;
-			for (const key in localStorage) if (localStorage.hasOwnProperty(key)) total += (localStorage[key].length + key.length) * 2;
-			return (total / 1024).toFixed(1);
-		} catch {
-			return "0";
+			await syncToDriveNow();
+		} catch (e) {} finally {
+			setIsSyncing(false);
 		}
-	})();
+	};
 	const formatFileSize = (bytes) => {
 		if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
 		return `${(bytes / 1048576).toFixed(1)} MB`;
@@ -28296,481 +28507,264 @@ var SettingsView = ({ openSyncModal, openInstallModal }) => {
 						className: "flex items-center gap-4",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 flex items-center justify-center text-white shadow-md shadow-indigo-500/20",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FolderGit2, { className: "w-7 h-7" })
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SlidersVertical, { className: "w-7 h-7" })
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "flex items-center gap-2",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
 								className: "text-2xl font-bold text-zinc-900 dark:text-zinc-100",
-								children: "Configurações & Atualizações"
+								children: "Ajustes & Preferências"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 								className: "px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900",
 								children: CURRENT_APP_VERSION
 							})]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 							className: "text-xs text-zinc-500 dark:text-zinc-400 mt-0.5",
-							children: "Gerencie atualizações direto do GitHub, sincronização em nuvem e preferências do sistema"
+							children: "Personalize sua experiência, gerencie backups e sincronize seus dados"
 						})] })]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "flex items-center gap-2",
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => handleCheckUpdates(),
+							onClick: handleCheckUpdates,
 							disabled: isChecking,
 							className: "flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md transition-all cursor-pointer disabled:opacity-60",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isChecking ? "Verificando GitHub..." : "Verificar Atualizações" })]
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isChecking ? "Verificando..." : "Buscar Atualizações" })]
 						})
 					})]
 				})
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-3",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 flex items-center justify-center",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Github, { className: "w-5 h-5" })
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-								className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-								children: "Atualizações pelo GitHub"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs text-zinc-500 dark:text-zinc-400",
-								children: "Puxe novas versões, lançamentos de APK e acompanhe os commits do seu repositório"
-							})] })]
-						}), updateResult?.checkedAt && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "text-[11px] text-zinc-400 hidden sm:inline-block",
-							children: ["Última checagem: ", new Date(updateResult.checkedAt).toLocaleTimeString("pt-BR")]
-						})]
-					}),
-					updateResult && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: updateResult.hasUpdate ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "p-5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-indigo-200 dark:border-indigo-800/80 space-y-3",
-						children: [
+				className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-4",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Cloud, { className: "w-5 h-5" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+							className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
+							children: "Sincronização em Nuvem (Google Drive)"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-zinc-500 dark:text-zinc-400",
+							children: "Seus dados salvos com total privacidade na sua própria conta do Google"
+						})] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						onClick: openSyncModal,
+						className: "px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-900",
+						children: "Abrir Central"
+					})]
+				}), user ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-3",
+						children: [user.photoURL ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+							src: user.photoURL,
+							alt: user.displayName || "Usuário",
+							className: "w-12 h-12 rounded-2xl object-cover border border-zinc-200 dark:border-zinc-700"
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-12 h-12 rounded-2xl bg-indigo-600 text-white font-bold flex items-center justify-center text-lg",
+							children: (user.displayName || user.email || "U")[0].toUpperCase()
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center justify-between flex-wrap gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-sm",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-indigo-600 animate-bounce" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Nova versão disponível: ", updateResult.latestVersion] }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "text-xs font-normal opacity-80",
-											children: [
-												"(Você está na ",
-												"v1.1.0",
-												")"
-											]
-										})
-									]
-								}), updateResult.latestRelease && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "text-[11px] text-zinc-500",
-									children: ["Publicada em: ", new Date(updateResult.latestRelease.published_at).toLocaleDateString("pt-BR")]
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-								className: "text-xs text-zinc-600 dark:text-zinc-300",
-								children: [
-									"Uma nova versão do ",
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "VidaOrganizada" }),
-									" foi publicada no GitHub. Você pode baixar o APK compilado ou visualizar os detalhes no repositório."
-								]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3 pt-1 flex-wrap",
-								children: [updateResult.apkAsset ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
-									href: updateResult.apkAsset.browser_download_url,
-									target: "_blank",
-									rel: "noreferrer",
-									className: "inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-colors",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-										"Baixar APK (",
-										formatFileSize(updateResult.apkAsset.size),
-										")"
-									] })]
-								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
-									href: updateResult.actionsUrl,
-									target: "_blank",
-									rel: "noreferrer",
-									className: "inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-colors",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Package, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Baixar APK no GitHub Actions" })]
-								}), updateResult.latestRelease?.html_url && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
-									href: updateResult.latestRelease.html_url,
-									target: "_blank",
-									rel: "noreferrer",
-									className: "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-medium transition-colors",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ver Release no GitHub" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "w-3 h-3" })]
-								})]
-							})
-						]
-					}) : updateResult.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-start gap-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "w-4 h-4 text-amber-600 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "text-xs space-y-1",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "font-semibold text-amber-900 dark:text-amber-200",
-									children: "Aviso ao conectar com o GitHub"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-amber-800 dark:text-amber-300",
-									children: updateResult.error
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-amber-700 dark:text-amber-400 text-[11px] pt-1",
-									children: "Dica: Certifique-se de que o repositório foi criado e os commits foram enviados (veja o guia de empacotamento no botão \"Instalar App\")."
-								})
-							]
-						})]
-					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex items-center justify-between flex-wrap gap-2",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-2.5",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-								className: "text-xs font-bold text-emerald-900 dark:text-emerald-200",
-								children: [
-									"Você está na versão mais recente (",
-									"v1.1.0",
-									")"
-								]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-[11px] text-emerald-700 dark:text-emerald-400",
-								children: "Não há novas versões publicadas pendentes para o repositório configurado."
-							})] })]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
-							href: updateResult.actionsUrl,
-							target: "_blank",
-							rel: "noreferrer",
-							className: "text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:underline flex items-center gap-1",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ver builds de APK no GitHub Actions" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "w-3 h-3" })]
-						})]
-					}) }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-5 space-y-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
-								className: "text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FolderGit2, { className: "w-3.5 h-3.5 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Configuração do Repositório do GitHub" })]
-							}), isSavedNotice && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-								className: "text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 animate-in fade-in",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3.5 h-3.5" }), "Configurações salvas!"]
-							})]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "space-y-3",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
-										className: "block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1",
-										children: "Repositório GitHub (usuario/repositorio)"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex gap-2",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "relative flex-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400 text-xs font-mono",
-												children: "github.com/"
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-												type: "text",
-												value: repoInput,
-												onChange: (e) => setRepoInput(e.target.value),
-												placeholder: "souoleandro/meu-vida-organizada",
-												className: "w-full pl-24 pr-4 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-											})]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-											onClick: handleSaveConfig,
-											className: "flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-xs font-semibold transition-colors cursor-pointer",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Save, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Salvar" })]
-										})]
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-										className: "text-[11px] text-zinc-400 mt-1",
-										children: [
-											"Exemplo: se sua conta no GitHub for ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "souoleandro" }),
-											" e o repo for ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "vida-organizada" }),
-											", use ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "souoleandro/vida-organizada" }),
-											"."
-										]
-									})
-								] }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-									onClick: () => setShowTokenField(!showTokenField),
-									className: "text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer font-medium",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Key, { className: "w-3 h-3" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: showTokenField ? "Ocultar Token de Acesso do GitHub" : "Repositório privado ou erro de limite? Adicionar Personal Access Token (Opcional)" }),
-										showTokenField ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronUp, { className: "w-3 h-3" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronDown, { className: "w-3 h-3" })
-									]
-								}), showTokenField && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "mt-2 p-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl space-y-2 animate-in fade-in",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
-											className: "block text-xs font-medium text-zinc-700 dark:text-zinc-300",
-											children: "GitHub Personal Access Token (classic ou fine-grained)"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-											type: "password",
-											value: tokenInput,
-											onChange: (e) => setTokenInput(e.target.value),
-											placeholder: "ghp_xxxxxxxxxxxxxxxxxxxxxx",
-											className: "w-full px-3 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-[10px] text-zinc-400",
-											children: "O token fica salvo apenas localmente no seu dispositivo e permite consultar repositórios privados e aumenta o limite de requisições da API."
-										})
-									]
-								})] }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-2 pt-1",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-										type: "checkbox",
-										id: "autoCheckUpdates",
-										checked: autoCheck,
-										onChange: (e) => {
-											setAutoCheck(e.target.checked);
-											saveGitHubConfig(repoInput, tokenInput, e.target.checked);
-										},
-										className: "rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
-										htmlFor: "autoCheckUpdates",
-										className: "text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer select-none",
-										children: "Verificar atualizações automaticamente ao abrir o aplicativo"
-									})]
-								})
-							]
-						})]
-					}),
-					updateResult?.latestRelease && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TagBadge, { tag: updateResult.latestRelease.tag_name }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
-									className: "text-sm font-bold text-zinc-900 dark:text-zinc-100",
-									children: updateResult.latestRelease.name
-								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setShowChangelog(!showChangelog),
-								className: "text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center gap-1 cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: showChangelog ? "Recolher notas" : "Ver notas" }), showChangelog ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronUp, { className: "w-3.5 h-3.5" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronDown, { className: "w-3.5 h-3.5" })]
-							})]
-						}), showChangelog && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "space-y-3 pt-2",
-							children: [updateResult.latestRelease.body ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl text-xs text-zinc-700 dark:text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto",
-								children: updateResult.latestRelease.body
-							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs text-zinc-400 italic",
-								children: "Sem descrição textual detalhada nesta release."
-							}), updateResult.latestRelease.assets.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "space-y-2 pt-1",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-[11px] font-bold text-zinc-400 uppercase tracking-wider block",
-									children: "Arquivos disponíveis para download:"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "grid grid-cols-1 sm:grid-cols-2 gap-2",
-									children: updateResult.latestRelease.assets.map((asset) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
-										href: asset.browser_download_url,
-										target: "_blank",
-										rel: "noreferrer",
-										className: "flex items-center justify-between p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:border-indigo-500 transition-colors",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2 min-w-0",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "w-3.5 h-3.5 text-indigo-600 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate font-mono",
-												children: asset.name
-											})]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] text-zinc-400 shrink-0 ml-2",
-											children: formatFileSize(asset.size)
-										})]
-									}, asset.id))
+									className: "font-bold text-sm text-zinc-900 dark:text-zinc-100",
+									children: user.displayName || "Usuário"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CloudCheck, { className: "w-3 h-3" }), "Conectado"]
 								})]
-							})]
-						})]
-					}),
-					updateResult?.recentCommits && updateResult.recentCommits.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GitCommitHorizontal, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
-									className: "text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400",
-									children: "Últimas Alterações de Código (Commits)"
-								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setShowCommits(!showCommits),
-								className: "text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center gap-1 cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: showCommits ? "Recolher" : `Ver ${updateResult.recentCommits.length} commits` }), showCommits ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronUp, { className: "w-3.5 h-3.5" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronDown, { className: "w-3.5 h-3.5" })]
-							})]
-						}), showCommits && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "space-y-2 pt-2",
-							children: updateResult.recentCommits.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-2.5 min-w-0",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded",
-										children: c.shortSha
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-xs text-zinc-800 dark:text-zinc-200 truncate",
-										children: c.message
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-3 shrink-0",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[10px] text-zinc-400 hidden sm:inline",
-										children: c.authorName
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-										href: c.url,
-										target: "_blank",
-										rel: "noreferrer",
-										className: "text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400",
-										title: "Ver no GitHub",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "w-3 h-3" })
-									})]
-								})]
-							}, c.sha))
-						})]
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "space-y-1",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-								className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: "w-3.5 h-3.5 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Atualização de Cache do Navegador (PWA)" })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 								className: "text-xs text-zinc-500 dark:text-zinc-400",
-								children: "Caso esteja acessando pelo celular via PWA/Chrome e queira forçar o carregamento imediato das últimas alterações sem esperar o cache expirar."
-							})]
+								children: user.email
+							}),
+							driveSyncInfo.lastSyncedAt && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+								className: "text-[11px] text-zinc-400 mt-0.5",
+								children: ["Última sincronização: ", new Date(driveSyncInfo.lastSyncedAt).toLocaleString("pt-BR")]
+							})
+						] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							onClick: handleSyncNow,
+							disabled: isSyncing,
+							className: "flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-60",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isSyncing ? "Salvando..." : "Salvar no Drive" })]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: handleHardRefresh,
-							disabled: isRefreshingCache,
-							className: "px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold transition-colors cursor-pointer shrink-0 disabled:opacity-50",
-							children: isRefreshingCache ? "Limpando..." : "Limpar Cache & Recarregar"
+							onClick: signOut,
+							title: "Desconectar conta Google",
+							className: "p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-rose-500 transition-colors cursor-pointer",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogOut, { className: "w-4 h-4" })
 						})]
-					})
-				]
+					})]
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-500",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CloudOff, { className: "w-5 h-5" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-sm font-bold text-zinc-900 dark:text-zinc-100",
+							children: "Modo Offline Ativo"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-zinc-500 dark:text-zinc-400",
+							children: "Conecte sua conta Google para sincronizar automaticamente entre seus aparelhos."
+						})] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						onClick: signInWithGoogle,
+						className: "px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md transition-colors cursor-pointer shrink-0",
+						children: "Conectar com Google"
+					})]
+				})]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6",
+				className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "border-b border-zinc-100 dark:border-zinc-800/80 pb-4",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+						className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
+						children: "Aparência & Notificações"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "text-xs text-zinc-500 dark:text-zinc-400",
+						children: "Ajustes de visualização e alertas visuais de tarefas"
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "grid grid-cols-1 sm:grid-cols-3 gap-4",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-9 h-9 rounded-xl bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-800 dark:text-zinc-200",
+									children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Moon, { className: "w-4 h-4 text-indigo-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sun, { className: "w-4 h-4 text-amber-500" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block",
+									children: "Aparência"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] text-zinc-500 capitalize",
+									children: theme === "dark" ? "Modo Escuro" : "Modo Claro"
+								})] })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: toggleTheme,
+								className: "px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors",
+								children: "Alternar"
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block",
+									children: "Lembretes & Alertas"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] text-zinc-500",
+									children: notificationPermission === "granted" ? "Alertas Ativos" : "Desativadas"
+								})] })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: openNotificationCenter,
+								className: "px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer transition-colors",
+								children: "Ver Alertas"
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 flex items-center justify-center",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Cpu, { className: "w-4 h-4" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block",
+									children: "Leitor de Recibos IA"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] text-zinc-500",
+									children: "OCR Automático"
+								})] })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800",
+								children: "Ativo"
+							})]
+						})
+					]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5",
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-3",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Cloud, { className: "w-5 h-5" })
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-								className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-								children: "Armazenamento & Sincronização Google Drive"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs text-zinc-500 dark:text-zinc-400",
-								children: "Seus dados sincronizam de forma privada na sua própria nuvem do Google"
-							})] })]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: openSyncModal,
-							className: "px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-900",
-							children: "Abrir Central de Sincronização"
+						className: "border-b border-zinc-100 dark:border-zinc-800/80 pb-4",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+							className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
+							children: "Cópia de Segurança Local"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-zinc-500 dark:text-zinc-400",
+							children: "Exporte ou importe seus dados a qualquer momento em arquivo JSON"
 						})]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "grid grid-cols-2 sm:grid-cols-4 gap-3",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
-										children: "Tarefas"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-xl font-bold text-zinc-900 dark:text-zinc-100",
-										children: tasks.length
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "text-[10px] text-zinc-500",
-										children: [tasks.filter((t) => t.completed).length, " concluídas"]
-									})
-								]
+								className: "p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
+									children: "Tarefas"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-lg font-bold text-zinc-900 dark:text-zinc-100",
+									children: tasks.length
+								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
-										children: "Finanças"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-xl font-bold text-zinc-900 dark:text-zinc-100",
-										children: transactions.length
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[10px] text-zinc-500",
-										children: "transações registradas"
-									})
-								]
+								className: "p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
+									children: "Transações"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-lg font-bold text-zinc-900 dark:text-zinc-100",
+									children: transactions.length
+								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
-										children: "Rascunhos & Metas"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-xl font-bold text-zinc-900 dark:text-zinc-100",
-										children: draftNotes.length + financialGoals.length
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[10px] text-zinc-500",
-										children: "notas e metas ativas"
-									})
-								]
+								className: "p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
+									children: "Metas & Notas"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-lg font-bold text-zinc-900 dark:text-zinc-100",
+									children: financialGoals.length + draftNotes.length
+								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
-										children: "Espaço Local"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-										className: "text-xl font-bold text-zinc-900 dark:text-zinc-100",
-										children: [
-											"~",
-											approxStorageBytes,
-											" KB"
-										]
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[10px] text-emerald-600 dark:text-emerald-400",
-										children: "Offline-first rápido"
-									})
-								]
+								className: "p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1",
+									children: "Privacidade"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1",
+									children: "100% no seu controle"
+								})]
 							})
 						]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex flex-col sm:flex-row gap-3 pt-2",
+						className: "flex flex-col sm:flex-row gap-3 pt-1",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: exportBackupJson,
 								className: "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Fazer Download de Backup Local (JSON)" })]
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Fazer Download do Backup (JSON)" })]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: () => fileInputRef.current?.click(),
 								className: "flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Upload, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Restaurar Backup de Arquivo" })]
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Upload, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Restaurar de Arquivo JSON" })]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
 								ref: fileInputRef,
@@ -28795,112 +28789,106 @@ var SettingsView = ({ openSyncModal, openInstallModal }) => {
 				]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "border-b border-zinc-100 dark:border-zinc-800/80 pb-4",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-						className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
-						children: "Preferências do Sistema & Recursos"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "text-xs text-zinc-500 dark:text-zinc-400",
-						children: "Ajustes visuais, notificações e status das integrações"
-					})]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "grid grid-cols-1 sm:grid-cols-2 gap-4",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-9 h-9 rounded-xl bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-800 dark:text-zinc-200",
-									children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Moon, { className: "w-4 h-4 text-indigo-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sun, { className: "w-4 h-4 text-amber-500" })
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block",
-									children: "Aparência do Aplicativo"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "text-[11px] text-zinc-500 capitalize",
-									children: ["Tema atual: ", theme === "dark" ? "Escuro" : "Claro"]
-								})] })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: toggleTheme,
-								className: "px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors",
-								children: "Alternar"
-							})]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4" })
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block",
-									children: "Notificações Visuais Silenciosas"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-[11px] text-zinc-500",
-									children: notificationPermission === "granted" ? "Autorizadas no navegador" : "Aguardando autorização"
-								})] })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: enableNotifications,
-								className: "px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors",
-								children: notificationPermission === "granted" ? "Ativas" : "Ativar"
-							})]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 flex items-center justify-center",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Cpu, { className: "w-4 h-4" })
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block",
-									children: "IA Leitora de Notas (OCR)"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-[11px] text-zinc-500",
-									children: "Google Gemini 3.8 Flash"
-								})] })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800",
-								children: "Operacional"
-							})]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-4 h-4" })
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block",
-									children: "Instalação no Celular (.APK / PWA)"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-[11px] text-zinc-500",
-									children: "Guia do GitHub Actions & Capacitor"
-								})] })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: openInstallModal,
-								className: "px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors",
-								children: "Ver Guia"
-							})]
-						})
-					]
-				})]
+				className: "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-4",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Package, { className: "w-5 h-5" })
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+								className: "text-base font-bold text-zinc-900 dark:text-zinc-100",
+								children: "Versão & Atualizações"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-zinc-500 dark:text-zinc-400",
+								children: "Mantenha seu VidaOrganizada sempre em dia"
+							})] })]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-xs font-bold font-mono text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full",
+							children: CURRENT_APP_VERSION
+						})]
+					}),
+					updateResult?.hasUpdate ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "p-5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-indigo-200 dark:border-indigo-800/80 space-y-3",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex items-center justify-between flex-wrap gap-2",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-sm",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Nova versão disponível: ", updateResult.latestVersion] })]
+								})
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-zinc-600 dark:text-zinc-300",
+								children: "Uma nova versão do VidaOrganizada está disponível para download."
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "pt-1",
+								children: updateResult.apkAsset ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+									href: updateResult.apkAsset.browser_download_url,
+									target: "_blank",
+									rel: "noreferrer",
+									className: "inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-colors",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+										"Baixar Atualização (",
+										formatFileSize(updateResult.apkAsset.size),
+										")"
+									] })]
+								}) : updateResult.latestRelease?.html_url ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+									href: updateResult.latestRelease.html_url,
+									target: "_blank",
+									rel: "noreferrer",
+									className: "inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-colors",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Ver Download da Nova Versão" })]
+								}) : null
+							})
+						]
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex items-center justify-between flex-wrap gap-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-2.5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+								className: "text-xs font-bold text-emerald-900 dark:text-emerald-200",
+								children: [
+									"Seu aplicativo está atualizado (",
+									CURRENT_APP_VERSION,
+									")"
+								]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-[11px] text-emerald-700 dark:text-emerald-400",
+								children: "Nenhuma atualização pendente no momento."
+							})] })]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							onClick: handleHardRefresh,
+							disabled: isRefreshingCache,
+							className: "text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:underline flex items-center gap-1 cursor-pointer",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-3 h-3 ${isRefreshingCache ? "animate-spin" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Recarregar aplicativo" })]
+						})]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 flex items-start gap-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-4 h-4 text-indigo-600 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+							className: "text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
+									className: "text-zinc-700 dark:text-zinc-300 font-semibold",
+									children: "Dica para celular: "
+								}),
+								"Para usar o VidaOrganizada em tela cheia como um aplicativo instalado, abra o link no Google Chrome (Android) ou Safari (iPhone), toque no menu de opções (⋮ ou Compartilhar) e selecione ",
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("em", { children: "\"Adicionar à tela de início\"" }),
+								"."
+							]
+						})]
+					})
+				]
 			})
 		]
 	});
 };
-function TagBadge({ tag }) {
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-		className: "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800",
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GitBranch, { className: "w-3 h-3" }), tag]
-	});
-}
 // src/components/DriveSync/DriveSyncModal.tsx
-var DriveSyncModal = ({ isOpen, onClose, onOpenInstallModal }) => {
+var DriveSyncModal = ({ isOpen, onClose }) => {
 	const { user, accessToken, signInWithGoogle, driveSyncInfo, syncToDriveNow, restoreFromDriveNow, exportBackupJson, importBackupJson, confirmDestructiveAction } = useApp();
 	const [isSyncingAction, setIsSyncingAction] = (0, import_react.useState)(false);
 	const [successMessage, setSuccessMessage] = (0, import_react.useState)(null);
@@ -28996,34 +28984,13 @@ var DriveSyncModal = ({ isOpen, onClose, onOpenInstallModal }) => {
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "mb-5 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 text-xs text-zinc-600 dark:text-zinc-300 space-y-2",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-100",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Sincronização em Tempo Real (Mobile & Desktop)" })]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-							className: "leading-relaxed",
-							children: [
-								"Seus dados são salvos em um arquivo seguro chamado ",
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
-									className: "bg-zinc-200 dark:bg-zinc-700 px-1 py-0.5 rounded text-[11px] font-mono",
-									children: "VidaOrganizada_Data.json"
-								}),
-								" na sua própria conta do Google Drive. Quando você atualiza tarefas no computador ou celular, as mudanças ficam disponíveis em todos os seus aparelhos conectados."
-							]
-						}),
-						onOpenInstallModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "pt-1",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => {
-									onClose();
-									onOpenInstallModal();
-								},
-								className: "text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 cursor-pointer",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Como instalar este app no celular (.APK / GitHub Actions)?" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "→" })]
-							})
-						})
-					]
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-100",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Sincronização em Nuvem Privada" })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "leading-relaxed",
+						children: "Seus dados são salvos de forma privada no seu próprio Google Drive. Quando você atualiza suas tarefas ou finanças, suas alterações ficam sincronizadas entre todos os seus dispositivos."
+					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 mb-5",
@@ -29145,29 +29112,16 @@ var DriveSyncModal = ({ isOpen, onClose, onOpenInstallModal }) => {
 		})
 	});
 };
-// src/components/Install/InstallGuideModal.tsx
-var InstallGuideModal = ({ isOpen, onClose }) => {
-	const [activeTab, setActiveTab] = (0, import_react.useState)("apk");
-	const [copiedCode, setCopiedCode] = (0, import_react.useState)(null);
+// src/components/Notifications/NotificationCenterModal.tsx
+var NotificationCenterModal = ({ isOpen, onClose }) => {
+	const { notificationsList, notificationPermission, enableNotifications, triggerTestNotification, dismissNotification, clearAllNotifications, tasks, calendarEvents } = useApp();
 	if (!isOpen) return null;
-	const copyToClipboard = (text, id) => {
-		navigator.clipboard.writeText(text);
-		setCopiedCode(id);
-		setTimeout(() => setCopiedCode(null), 2500);
-	};
-	const gitCommands = `# 1. Inicialize o repositório git no seu projeto
-git init
-git add .
-git commit -m "Primeiro commit - VidaOrganizada"
-
-# 2. Conecte ao seu repositório no GitHub e envie
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/meu-vida-organizada.git
-git push -u origin main`;
+	const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+	const dueTodayTasks = tasks.filter((t) => !t.completed && t.dueDate === todayStr);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto relative flex flex-col",
+			className: "w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 sm:p-7 max-h-[85vh] flex flex-col relative",
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 					onClick: onClose,
@@ -29175,354 +29129,149 @@ git push -u origin main`;
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-5 h-5" })
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-3 mb-6",
+					className: "flex items-center gap-3 mb-5 pr-8",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-6 h-6" })
+						className: "w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BellRing, { className: "w-5 h-5" })
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-						className: "text-xl font-bold text-zinc-900 dark:text-zinc-100",
-						children: "Instalação no Celular & Empacotamento"
+						className: "text-lg font-bold text-zinc-900 dark:text-zinc-100",
+						children: "Notificações & Lembretes"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "text-xs text-zinc-500 dark:text-zinc-400",
-						children: "Transforme seu gerenciador em um aplicativo instalado no seu smartphone"
+						children: "Avisos de tarefas do dia, compromissos e alertas do sistema"
 					})] })]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex border-b border-zinc-200 dark:border-zinc-800 mb-6 gap-2",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => setActiveTab("apk"),
-							className: `pb-3 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${activeTab === "apk" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`,
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Github, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Gerar APK via GitHub Actions" })]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => setActiveTab("pwa"),
-							className: `pb-3 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${activeTab === "pwa" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`,
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Globe, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Instalar Direto (PWA)" })]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => setActiveTab("status"),
-							className: `pb-3 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${activeTab === "status" ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`,
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Layers, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Checklist IA & Banco" })]
-						})
-					]
-				}),
-				activeTab === "apk" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "space-y-4 text-xs text-zinc-600 dark:text-zinc-300",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/50",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", {
-								className: "font-bold text-indigo-950 dark:text-indigo-200 text-sm mb-1 flex items-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4 text-indigo-600 dark:text-indigo-400" }), "Seu projeto já está 100% configurado para o GitHub Actions!"]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-								className: "text-zinc-600 dark:text-zinc-300 leading-relaxed",
-								children: [
-									"Criamos os arquivos ",
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
-										className: "font-mono bg-indigo-100 dark:bg-indigo-900/60 px-1 py-0.5 rounded text-[11px]",
-										children: ".github/workflows/build-apk.yml"
-									}),
-									" e ",
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
-										className: "font-mono bg-indigo-100 dark:bg-indigo-900/60 px-1 py-0.5 rounded text-[11px]",
-										children: "capacitor.config.ts"
-									}),
-									". Quando você subir esse código no GitHub, a nuvem do GitHub compilará o APK do Android automaticamente sem você precisar instalar o Android Studio no seu computador."
-								]
-							})]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h5", {
-							className: "font-bold text-zinc-900 dark:text-zinc-100 text-xs uppercase tracking-wider pt-2",
-							children: "Passo a Passo para Gerar e Baixar o APK:"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
-							className: "space-y-3",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
-									className: "flex gap-3",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-xs",
-										children: "1"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
-										className: "text-zinc-900 dark:text-zinc-100",
-										children: "Crie um repositório no GitHub:"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-										className: "text-zinc-500 dark:text-zinc-400",
-										children: [
-											"Acesse ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-												href: "https://github.com/new",
-												target: "_blank",
-												rel: "noreferrer",
-												className: "text-indigo-600 dark:text-indigo-400 underline font-medium",
-												children: "github.com/new"
-											}),
-											" e crie um repositório novo (ex: ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "meu-vida-organizada" }),
-											")."
-										]
-									})] })]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
-									className: "flex gap-3",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-xs",
-										children: "2"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex-1",
-										children: [
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
-												className: "text-zinc-900 dark:text-zinc-100",
-												children: "Envie os arquivos para o GitHub:"
-											}),
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-												className: "text-zinc-500 dark:text-zinc-400 mb-2",
-												children: "Execute estes comandos no terminal da pasta do seu projeto:"
-											}),
-											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "relative",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
-													className: "p-3 bg-zinc-950 text-zinc-200 rounded-xl font-mono text-[11px] overflow-x-auto leading-relaxed border border-zinc-800",
-													children: gitCommands
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													onClick: () => copyToClipboard(gitCommands, "git"),
-													className: "absolute top-2 right-2 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-medium flex items-center gap-1 cursor-pointer",
-													children: copiedCode === "git" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3 h-3 text-emerald-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Copiado!" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Copiar" })] })
-												})]
-											})
-										]
-									})]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
-									className: "flex gap-3",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-xs",
-										children: "3"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
-										className: "text-zinc-900 dark:text-zinc-100",
-										children: "A esteira do GitHub Actions roda sozinha:"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-										className: "text-zinc-500 dark:text-zinc-400",
-										children: [
-											"No GitHub, clique na aba ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "Actions" }),
-											" no topo do repositório. Você verá o processo chamado ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "font-semibold text-zinc-700 dark:text-zinc-300",
-												children: "\"Compilar APK Android\""
-											}),
-											" rodando. Leva cerca de 2 a 3 minutos."
-										]
-									})] })]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
-									className: "flex gap-3",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-xs",
-										children: "4"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
-										className: "text-zinc-900 dark:text-zinc-100",
-										children: "Baixe o APK para o celular:"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-										className: "text-zinc-500 dark:text-zinc-400",
-										children: [
-											"Quando o workflow concluir com sinal verde (✓), role até a seção ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "font-semibold text-zinc-700 dark:text-zinc-300",
-												children: "Artifacts"
-											}),
-											" e clique em ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "font-semibold text-indigo-600 dark:text-indigo-400",
-												children: "VidaOrganizada-APK"
-											}),
-											" para baixar o arquivo compactado com o ",
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "app-debug.apk" }),
-											"."
-										]
-									})] })]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
-									className: "flex gap-3",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "w-6 h-6 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-xs",
-										children: "5"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
-										className: "text-zinc-900 dark:text-zinc-100",
-										children: "Instalar no celular Android:"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-zinc-500 dark:text-zinc-400",
-										children: "Abra o arquivo baixado no celular e confirme a instalação (se solicitado, autorize instalar aplicativos de fontes desconhecidas para este arquivo de depuração pessoal)."
-									})] })]
-								})
-							]
-						})
-					]
-				}),
-				activeTab === "pwa" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "space-y-4 text-xs text-zinc-600 dark:text-zinc-300",
+					className: "p-3.5 mb-4 rounded-2xl border transition-colors flex items-center justify-between gap-3 bg-zinc-50 dark:bg-zinc-800/40 border-zinc-200 dark:border-zinc-700/60",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", {
-							className: "font-bold text-emerald-950 dark:text-emerald-200 text-sm mb-1 flex items-center gap-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-emerald-600 dark:text-emerald-400" }), "Instalação Instantânea em 1 Clique (PWA)"]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "text-zinc-600 dark:text-zinc-300 leading-relaxed",
-							children: "Você nem precisa compilar APK se não quiser! Como este aplicativo é uma Progressive Web App (PWA) completa com manifesto, ícone e tela cheia, você pode instalá-lo diretamente no navegador do seu smartphone em menos de 10 segundos."
-						})]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "grid grid-cols-1 sm:grid-cols-2 gap-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 space-y-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2 font-bold text-zinc-900 dark:text-zinc-100 text-sm",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-4 h-4 text-indigo-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "No Android (Google Chrome)" })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
-								className: "space-y-2 text-zinc-600 dark:text-zinc-400 pl-4 list-decimal",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "Abra o link do seu app no Google Chrome." }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
-										"Toque nos ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "três pontinhos (⋮)" }),
-										" no canto superior direito."
-									] }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
-										"Selecione ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\"Instalar aplicativo\"" }),
-										" ou ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\"Adicionar à tela inicial\"" }),
-										"."
-									] }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "O ícone aparecerá junto aos seus outros aplicativos como um app nativo, abrindo sem a barra de navegação do navegador." })
-								]
-							})]
+						className: "flex items-center gap-2.5 min-w-0",
+						children: [notificationPermission === "granted" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4" })
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center shrink-0",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BellOff, { className: "w-4 h-4" })
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 space-y-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2 font-bold text-zinc-900 dark:text-zinc-100 text-sm",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smartphone, { className: "w-4 h-4 text-purple-600" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "No iPhone / iPad (Safari)" })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ol", {
-								className: "space-y-2 text-zinc-600 dark:text-zinc-400 pl-4 list-decimal",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "Abra o link do app no navegador Safari." }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
-										"Toque no botão ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "Compartilhar" }),
-										" (quadrado com seta para cima na barra inferior)."
-									] }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [
-										"Role e selecione ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\"Adicionar à Tela de Início\"" }),
-										"."
-									] }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "Toque em \"Adicionar\". O app funcionará em modo tela cheia independente." })
-								]
+							className: "min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-xs font-bold text-zinc-900 dark:text-zinc-100 block truncate",
+								children: notificationPermission === "granted" ? "Notificações do Sistema Ativas" : "Notificações Desativadas"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] text-zinc-500 dark:text-zinc-400 block truncate",
+								children: notificationPermission === "granted" ? "Alertas silenciosos visuais no navegador" : "Autorize para receber lembretes de prazos"
 							})]
 						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "flex items-center gap-1.5 shrink-0",
+						children: notificationPermission === "granted" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: triggerTestNotification,
+							className: "px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer",
+							children: "Testar Alerta"
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: enableNotifications,
+							className: "px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer",
+							children: "Ativar Agora"
+						})
 					})]
-				}),
-				activeTab === "status" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "space-y-4 text-xs text-zinc-600 dark:text-zinc-300",
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "grid grid-cols-1 gap-3",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between mb-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-2",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bot, { className: "w-4 h-4" })
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "font-bold text-sm text-zinc-900 dark:text-zinc-100",
-											children: "Inteligência Artificial (Google Gemini)"
-										})]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3.5 h-3.5" }), "Preparada & Ativa"]
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "text-zinc-500 dark:text-zinc-400 leading-relaxed",
-									children: [
-										"Backend com ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "Gemini 3.8 Flash" }),
-										" configurado no servidor em ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
-											className: "font-mono bg-zinc-200 dark:bg-zinc-700 px-1 py-0.5 rounded text-[11px]",
-											children: "POST /api/gemini/parse-receipt"
-										}),
-										" com suporte a CORS para o app instalado, extraindo automaticamente loja, valor total, data de emissão, categoria e forma de pagamento de fotos de notas fiscais."
-									]
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between mb-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-2",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Database, { className: "w-4 h-4" })
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "font-bold text-sm text-zinc-900 dark:text-zinc-100",
-											children: "Banco de Dados & Sincronização"
-										})]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3.5 h-3.5" }), "Offline-First + Google Drive"]
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "space-y-2 text-zinc-500 dark:text-zinc-400 leading-relaxed",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "Como funciona:" }),
-										" Seus dados são salvos instantaneamente no armazenamento local do dispositivo (funciona 100% offline). Ao conectar com sua conta Google, ele sincroniza automaticamente com o arquivo seguro ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
-											className: "font-mono bg-zinc-200 dark:bg-zinc-700 px-1 py-0.5 rounded text-[11px]",
-											children: "VidaOrganizada_Data.json"
-										}),
-										" no seu Google Drive."
-									] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "Vantagens:" }), " Total privacidade (os dados são seus, na sua conta Google), custo zero de servidores e sincronização entre celular e computador. Você também pode exportar e importar arquivos de backup em formato JSON quando desejar."] })]
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between mb-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-2",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Globe, { className: "w-4 h-4" })
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "font-bold text-sm text-zinc-900 dark:text-zinc-100",
-											children: "Google Calendar & Google Tasks"
-										})]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3.5 h-3.5" }), "OAuth 2.0 Habilitado"]
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-zinc-500 dark:text-zinc-400 leading-relaxed",
-									children: "Credenciais OAuth configuradas para os escopos de Drive, Calendar e Tasks, permitindo salvar eventos na agenda real do seu celular/computador."
-								})]
-							})
-						]
-					})
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[11px] text-zinc-400",
-						children: "Capacitor 8 + GitHub Actions CI/CD configurados"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						onClick: onClose,
-						className: "px-5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-md transition-colors",
-						children: "Entendido"
+					className: "flex-1 overflow-y-auto space-y-4 pr-1",
+					children: [dueTodayTasks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+							className: "text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+								"Vencendo Hoje (",
+								dueTodayTasks.length,
+								")"
+							] })]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-1.5",
+							children: dueTodayTasks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "p-3 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate",
+										children: t.title
+									}), t.dueTime && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+										className: "text-[10px] text-indigo-600 dark:text-indigo-400 font-medium",
+										children: ["Horário limite: ", t.dueTime]
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shadow-xs",
+									children: "Pendente"
+								})]
+							}, t.id))
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "text-[11px] font-bold uppercase tracking-wider text-zinc-400",
+								children: [
+									"Histórico Recente (",
+									notificationsList.length,
+									")"
+								]
+							}), notificationsList.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								onClick: clearAllNotifications,
+								className: "text-[11px] text-zinc-400 hover:text-rose-500 transition-colors flex items-center gap-1 cursor-pointer",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Limpar tudo" })]
+							})]
+						}), notificationsList.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "py-8 text-center text-zinc-400 dark:text-zinc-500 space-y-1",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-8 h-8 mx-auto stroke-1 opacity-40 mb-1" }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-medium",
+									children: "Nenhum alerta recente"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-[11px]",
+									children: "Você será avisado quando houver prazos ou novidades."
+								})
+							]
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-2",
+							children: notificationsList.map((notif) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800/80 flex items-start justify-between gap-3 group",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0 space-y-0.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-xs font-bold text-zinc-900 dark:text-zinc-100",
+											children: notif.title
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[9px] text-zinc-400",
+											children: new Date(notif.timestamp).toLocaleTimeString("pt-BR", {
+												hour: "2-digit",
+												minute: "2-digit"
+											})
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed",
+										children: notif.body
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: () => dismissNotification(notif.id),
+									title: "Excluir notificação",
+									className: "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1 rounded-lg opacity-60 hover:opacity-100 transition-opacity cursor-pointer shrink-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+								})]
+							}, notif.id))
+						})]
 					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-end",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						onClick: onClose,
+						className: "px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer",
+						children: "Fechar"
+					})
 				})
 			]
 		})
@@ -29552,8 +29301,12 @@ var QuickActionFab = ({ setCurrentTab }) => {
 		setIsOpen(false);
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "fixed inset-0 z-30 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150",
+			onClick: () => setIsOpen(false)
+		}),
 		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "fixed bottom-20 md:bottom-8 right-5 z-40 flex flex-col items-end gap-2",
+			className: "fixed bottom-20 md:bottom-8 right-4 sm:right-6 z-40 flex flex-col items-end gap-2",
 			children: [isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "flex flex-col items-end gap-2 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200",
 				children: [
@@ -29699,7 +29452,26 @@ var ToastUndo = () => {
 var MainApp = () => {
 	const [currentTab, setCurrentTab] = (0, import_react.useState)("dashboard");
 	const [isSyncModalOpen, setIsSyncModalOpen] = (0, import_react.useState)(false);
-	const [isInstallModalOpen, setIsInstallModalOpen] = (0, import_react.useState)(false);
+	const [isNotificationCenterOpen, setIsNotificationCenterOpen] = (0, import_react.useState)(false);
+	(0, import_react.useEffect)(() => {
+		if (!Capacitor.isNativePlatform()) return;
+		let sub = null;
+		App$1.addListener("backButton", () => {
+			if (isNotificationCenterOpen) setIsNotificationCenterOpen(false);
+			else if (isSyncModalOpen) setIsSyncModalOpen(false);
+			else if (currentTab !== "dashboard") setCurrentTab("dashboard");
+			else App$1.exitApp();
+		}).then((s) => {
+			sub = s;
+		}).catch(() => {});
+		return () => {
+			if (sub && sub.remove) sub.remove();
+		};
+	}, [
+		isNotificationCenterOpen,
+		isSyncModalOpen,
+		currentTab
+	]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors selection:bg-indigo-500 selection:text-white",
 		children: [
@@ -29707,10 +29479,10 @@ var MainApp = () => {
 				currentTab,
 				setCurrentTab,
 				openSyncModal: () => setIsSyncModalOpen(true),
-				openInstallModal: () => setIsInstallModalOpen(true)
+				openNotificationCenter: () => setIsNotificationCenterOpen(true)
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("main", {
-				className: "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6",
+				className: "flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-28 md:pb-12",
 				children: [
 					currentTab === "dashboard" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DashboardView, { setCurrentTab }),
 					currentTab === "tarefas" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TasksView, {}),
@@ -29718,7 +29490,7 @@ var MainApp = () => {
 					currentTab === "agenda" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AgendaView, {}),
 					currentTab === "configuracoes" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SettingsView, {
 						openSyncModal: () => setIsSyncModalOpen(true),
-						openInstallModal: () => setIsInstallModalOpen(true)
+						openNotificationCenter: () => setIsNotificationCenterOpen(true)
 					})
 				]
 			}),
@@ -29731,12 +29503,11 @@ var MainApp = () => {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DriveSyncModal, {
 				isOpen: isSyncModalOpen,
-				onClose: () => setIsSyncModalOpen(false),
-				onOpenInstallModal: () => setIsInstallModalOpen(true)
+				onClose: () => setIsSyncModalOpen(false)
 			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(InstallGuideModal, {
-				isOpen: isInstallModalOpen,
-				onClose: () => setIsInstallModalOpen(false)
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(NotificationCenterModal, {
+				isOpen: isNotificationCenterOpen,
+				onClose: () => setIsNotificationCenterOpen(false)
 			})
 		]
 	});
@@ -29746,3 +29517,4 @@ function App() {
 }
 // src/main.tsx
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
+export { WebPlugin as t };

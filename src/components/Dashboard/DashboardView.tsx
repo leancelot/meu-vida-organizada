@@ -1,49 +1,45 @@
 import React, { useState } from 'react';
 import {
-  AlertTriangle,
   ArrowRight,
   Bell,
   Calendar,
-  Check,
+  Camera,
   CheckCircle2,
+  Circle,
   Clock,
   DollarSign,
-  Download,
   Edit2,
-  Eye,
-  EyeOff,
-  FolderGit2,
-  LayoutGrid,
   Palette,
   Pin,
   Plus,
-  Sliders,
   Sparkles,
   StickyNote,
   Trash2,
+  TrendingDown,
+  TrendingUp,
   Wallet,
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { DraftNote } from '../../types';
+import { DraftNote, TaskItem } from '../../types';
 
 interface DashboardViewProps {
   setCurrentTab: (tab: string) => void;
 }
 
 const POSTIT_COLORS = [
-  { label: 'Amarelo', hex: '#fef08a', textDark: true },
-  { label: 'Verde', hex: '#bbf7d0', textDark: true },
-  { label: 'Azul', hex: '#bae6fd', textDark: true },
-  { label: 'Lavanda', hex: '#e9d5ff', textDark: true },
-  { label: 'Pêssego', hex: '#fed7aa', textDark: true },
-  { label: 'Cinza', hex: '#f4f4f5', textDark: true },
+  { label: 'Amarelo', hex: '#fef08a' },
+  { label: 'Verde', hex: '#bbf7d0' },
+  { label: 'Azul', hex: '#bae6fd' },
+  { label: 'Lavanda', hex: '#e9d5ff' },
+  { label: 'Pêssego', hex: '#fed7aa' },
 ];
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) => {
   const {
     tasks,
     toggleTaskCompletion,
+    addTask,
     transactions,
     calendarEvents,
     draftNotes,
@@ -51,22 +47,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
     updateDraftNote,
     deleteDraftNote,
     togglePinDraft,
-    addTask,
-    dashboardWidgets,
-    toggleDashboardWidget,
-    notificationPermission,
-    enableNotifications,
-    triggerTestNotification,
-    notificationsList,
-    dismissNotification,
-    clearAllNotifications,
+    user,
+    driveSyncInfo,
   } = useApp();
 
-  const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
+  const [isNewDraftOpen, setIsNewDraftOpen] = useState(false);
   const [newDraftTitle, setNewDraftTitle] = useState('');
   const [newDraftContent, setNewDraftContent] = useState('');
   const [newDraftColor, setNewDraftColor] = useState('#fef08a');
-  const [isNewDraftOpen, setIsNewDraftOpen] = useState(false);
   const [activeEditingDraftId, setActiveEditingDraftId] = useState<string | null>(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -74,6 +63,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
   // Daily task metrics
   const todayTasks = tasks.filter((t) => t.dueDate === todayStr);
   const pendingTodayTasks = todayTasks.filter((t) => !t.completed);
+  const completedTodayTasks = todayTasks.filter((t) => t.completed);
 
   // Financial metrics for current month
   const currentMonth = new Date().getMonth();
@@ -90,6 +80,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
     .reduce((s, tx) => s + tx.amount, 0);
   const balance = totalIncome - totalExpense;
 
+  // Calendar events for today
+  const todayEvents = calendarEvents.filter((event) => {
+    if (event.start?.date === todayStr) return true;
+    if (event.start?.dateTime && event.start.dateTime.startsWith(todayStr)) return true;
+    return false;
+  });
+
   const formatBRL = (val: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -97,12 +94,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
     }).format(val);
   };
 
+  const handleQuickAddTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickTaskTitle.trim()) return;
+
+    addTask({
+      title: quickTaskTitle.trim(),
+      dueDate: todayStr,
+      priority: 'medium',
+      category: 'pessoal',
+      completed: false,
+      subtasks: [],
+    });
+    setQuickTaskTitle('');
+  };
+
   const handleCreateDraft = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDraftTitle.trim() && !newDraftContent.trim()) return;
 
     addDraftNote({
-      title: newDraftTitle.trim() || 'Rascunho sem título',
+      title: newDraftTitle.trim() || 'Rascunho Rápido',
       content: newDraftContent.trim(),
       color: newDraftColor,
       isPinned: false,
@@ -110,13 +122,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
 
     setNewDraftTitle('');
     setNewDraftContent('');
-    setNewDraftColor('#fef08a');
     setIsNewDraftOpen(false);
   };
 
   const convertDraftToTask = (draft: DraftNote) => {
     addTask({
-      title: draft.title || 'Tarefa do Rascunho',
+      title: draft.title || 'Tarefa do Post-it',
       description: draft.content,
       dueDate: todayStr,
       priority: 'medium',
@@ -124,515 +135,293 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
       completed: false,
       subtasks: [],
     });
-    alert(`Rascunho "${draft.title}" convertido em tarefa para hoje com sucesso!`);
+    deleteDraftNote(draft.id);
   };
 
-  const isWidgetVisible = (id: string) => dashboardWidgets.includes(id);
+  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Organizador';
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Top Banner with Customization Toggle */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-5 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
-            <LayoutGrid className="w-5 h-5" />
-          </div>
-          <div>
+    <div className="space-y-5 animate-in fade-in duration-300">
+      {/* 1. Android Greeting Card */}
+      <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 rounded-3xl p-5 sm:p-6 text-white shadow-lg shadow-indigo-500/15 relative overflow-hidden">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                Dashboard Modular
-              </h2>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                Personalizável
+              <span className="text-xl sm:text-2xl font-bold tracking-tight">
+                Olá, {firstName}! 👋
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white/20 backdrop-blur-md text-white">
+                Hoje
               </span>
             </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Visão geral interativa: configure seus módulos e anote rascunhos ao vivo
+            <p className="text-xs text-indigo-100/90 leading-relaxed max-w-lg">
+              {pendingTodayTasks.length === 0
+                ? 'Todas as tarefas de hoje foram concluídas! Aproveite seu tempo.'
+                : `Você tem ${pendingTodayTasks.length} ${
+                    pendingTodayTasks.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'
+                  } para hoje.`}
             </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {notificationPermission !== 'granted' ? (
-            <button
-              onClick={enableNotifications}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer animate-pulse"
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span>Ativar Notificações</span>
-            </button>
-          ) : (
-            <button
-              onClick={triggerTestNotification}
-              title="Testar notificação visual silenciosa"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 text-xs font-medium border border-zinc-200 dark:border-zinc-700 transition-colors cursor-pointer"
-            >
-              <Bell className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Testar Notificação</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setIsCustomizeOpen(!isCustomizeOpen)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-              isCustomizeOpen
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border-zinc-900 dark:border-zinc-100'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>{isCustomizeOpen ? 'Fechar Módulos' : 'Personalizar Módulos'}</span>
-          </button>
-
-          <button
-            onClick={() => setCurrentTab('configuracoes')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-xs font-semibold border border-indigo-200 dark:border-indigo-900 transition-colors cursor-pointer"
-            title="Verificar atualizações do app no GitHub e configurações"
-          >
-            <FolderGit2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Atualizações & Ajustes</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-white border border-white/20">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  driveSyncInfo.status === 'synced' ? 'bg-emerald-400' : 'bg-amber-300'
+                }`}
+              />
+              <span>{user ? 'Google Drive Conectado' : 'Armazenamento Local'}</span>
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Modular Widgets Customizer Panel */}
-      {isCustomizeOpen && (
-        <div className="bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/80 rounded-3xl p-5 animate-in slide-in-from-top duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
-              Escolha quais módulos deseja exibir no seu Dashboard:
+      {/* 2. Key Metrics - 3 Android Material Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Tarefas Hoje */}
+        <div
+          onClick={() => setCurrentTab('tarefas')}
+          className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-xs hover:border-indigo-400 dark:hover:border-indigo-600 transition-all cursor-pointer flex items-center justify-between group"
+        >
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Tarefas de Hoje
             </span>
-            <span className="text-xs text-zinc-500">Clique para ativar/ocultar</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-100">
+                {completedTodayTasks.length}/{todayTasks.length}
+              </span>
+              <span className="text-xs text-zinc-500 font-medium">concluídas</span>
+            </div>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {[
-              { id: 'reminders', label: 'Central de Lembretes & Notificações' },
-              { id: 'tasks', label: 'Tarefas de Hoje' },
-              { id: 'schedule', label: 'Próximos Compromissos (Agenda)' },
-              { id: 'scratchpad', label: 'Bloco de Rascunhos & Post-its' },
-              { id: 'finance', label: 'Resumo Financeiro' },
-            ].map((widget) => {
-              const active = isWidgetVisible(widget.id);
-              return (
-                <button
-                  key={widget.id}
-                  onClick={() => toggleDashboardWidget(widget.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                    active
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-white dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'
-                  }`}
-                >
-                  {active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                  <span>{widget.label}</span>
-                </button>
-              );
-            })}
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
         </div>
-      )}
 
-      {/* GRID OF MODULAR WIDGETS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* WIDGET 1: Central de Lembretes & Notificações Web Silenciosas */}
-        {isWidgetVisible('reminders') && (
-          <div className="lg:col-span-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bell className="w-5 h-5 text-amber-500" />
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                  Lembretes Ativos & Notificações Visuais
-                </h3>
-                <span className="text-xs text-zinc-400">
-                  ({notificationsList.length} alertas silenciosos recentes)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {notificationsList.length > 0 && (
-                  <button
-                    onClick={clearAllNotifications}
-                    className="text-xs text-zinc-400 hover:text-rose-500 transition-colors cursor-pointer"
-                  >
-                    Limpar todos
-                  </button>
-                )}
-                {notificationPermission !== 'granted' && (
-                  <button
-                    onClick={enableNotifications}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 border border-amber-200 dark:border-amber-800"
-                  >
-                    Permitir no Navegador
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {notificationsList.length === 0 ? (
-              <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-850/50 border border-zinc-100 dark:border-zinc-800 text-center text-xs text-zinc-500">
-                Nenhum alerta recente. O sistema monitora tarefas com horários e compromissos da agenda e emitirá notificações visuais silenciosas automaticamente.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                {notificationsList.slice(0, 6).map((notif) => (
-                  <div
-                    key={notif.id}
-                    className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 text-xs flex items-start justify-between gap-2"
-                  >
-                    <div>
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        {notif.title}
-                      </p>
-                      <p className="text-zinc-600 dark:text-zinc-400 text-[11px] mt-0.5">
-                        {notif.body}
-                      </p>
-                      <span className="text-[10px] text-zinc-400 mt-1 block">
-                        {new Date(notif.timestamp).toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => dismissNotification(notif.id)}
-                      className="text-zinc-400 hover:text-zinc-600 p-0.5 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* WIDGET 2: Tarefas de Hoje */}
-        {isWidgetVisible('tasks') && (
-          <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                  Tarefas de Hoje
-                </h3>
-                <span className="text-xs text-zinc-400">
-                  ({pendingTodayTasks.length} pendentes)
-                </span>
-              </div>
-              <button
-                onClick={() => setCurrentTab('tarefas')}
-                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+        {/* Saldo do Mês */}
+        <div
+          onClick={() => setCurrentTab('financas')}
+          className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-xs hover:border-emerald-400 dark:hover:border-emerald-600 transition-all cursor-pointer flex items-center justify-between group"
+        >
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Saldo do Mês
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`text-2xl font-black ${
+                  balance >= 0
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-rose-600 dark:text-rose-400'
+                }`}
               >
-                <span>Ver todas</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+                {formatBRL(balance)}
+              </span>
             </div>
-
-            {todayTasks.length === 0 ? (
-              <div className="p-8 text-center text-zinc-400 space-y-2 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
-                <p className="text-xs font-medium">Nenhuma tarefa marcada para hoje.</p>
-                <button
-                  onClick={() => setCurrentTab('tarefas')}
-                  className="text-xs font-semibold text-indigo-600 hover:underline cursor-pointer"
-                >
-                  + Adicionar tarefa
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {todayTasks.map((t) => (
-                  <div
-                    key={t.id}
-                    className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3 group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <button
-                        onClick={() => toggleTaskCompletion(t.id)}
-                        className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
-                          t.completed
-                            ? 'bg-emerald-500 border-emerald-500 text-white'
-                            : 'border-zinc-300 dark:border-zinc-700 text-transparent'
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </button>
-                      <div className="min-w-0">
-                        <p
-                          className={`text-xs sm:text-sm font-semibold truncate ${
-                            t.completed
-                              ? 'line-through text-zinc-400'
-                              : 'text-zinc-900 dark:text-zinc-100'
-                          }`}
-                        >
-                          {t.title}
-                        </p>
-                        {t.dueTime && (
-                          <div className="flex items-center gap-1 text-[11px] text-zinc-400">
-                            <Clock className="w-3 h-3 text-indigo-500" />
-                            <span>{t.dueTime}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        t.priority === 'high'
-                          ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                          : t.priority === 'medium'
-                          ? 'bg-amber-50 text-amber-600 border border-amber-200'
-                          : 'bg-zinc-100 text-zinc-600'
-                      }`}
-                    >
-                      {t.priority === 'high' ? 'Alta' : t.priority === 'medium' ? 'Média' : 'Baixa'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        )}
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+            <Wallet className="w-5 h-5" />
+          </div>
+        </div>
 
-        {/* WIDGET 3: Resumo Financeiro */}
-        {isWidgetVisible('finance') && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                  Finanças do Mês
-                </h3>
-              </div>
-              <button
-                onClick={() => setCurrentTab('financas')}
-                className="text-xs font-semibold text-emerald-600 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>Painel</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+        {/* Agenda Hoje */}
+        <div
+          onClick={() => setCurrentTab('agenda')}
+          className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-xs hover:border-violet-400 dark:hover:border-violet-600 transition-all cursor-pointer flex items-center justify-between group"
+        >
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Compromissos Hoje
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-100">
+                {todayEvents.length}
+              </span>
+              <span className="text-xs text-zinc-500 font-medium">na agenda</span>
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+            <Calendar className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Atalhos Rápidos Nativos (Android Action Chips) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          onClick={() => setCurrentTab('financas')}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-500 text-xs font-semibold text-zinc-800 dark:text-zinc-200 shrink-0 shadow-xs transition-colors cursor-pointer"
+        >
+          <Camera className="w-4 h-4 text-indigo-600" />
+          <span>Escanear Nota Fiscal (IA)</span>
+        </button>
+
+        <button
+          onClick={() => setIsNewDraftOpen(true)}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 text-xs font-semibold text-zinc-800 dark:text-zinc-200 shrink-0 shadow-xs transition-colors cursor-pointer"
+        >
+          <StickyNote className="w-4 h-4 text-amber-500" />
+          <span>Novo Post-it</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentTab('agenda')}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-violet-500 text-xs font-semibold text-zinc-800 dark:text-zinc-200 shrink-0 shadow-xs transition-colors cursor-pointer"
+        >
+          <Calendar className="w-4 h-4 text-violet-600" />
+          <span>Ver Agenda Completa</span>
+        </button>
+      </div>
+
+      {/* 4. Main Two-Column Layout: Tarefas de Hoje & Post-its */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Coluna 1 & 2: Tarefas do Dia */}
+        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                Foco do Dia (Tarefas)
+              </h2>
             </div>
 
-            <div className="space-y-3">
-              <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-800">
-                <span className="text-[11px] font-semibold text-zinc-400 uppercase">
-                  Saldo Líquido Atual
-                </span>
+            <button
+              onClick={() => setCurrentTab('tarefas')}
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>Ver todas</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Quick Task Input Form */}
+          <form onSubmit={handleQuickAddTask} className="flex gap-2">
+            <input
+              type="text"
+              value={quickTaskTitle}
+              onChange={(e) => setQuickTaskTitle(e.target.value)}
+              placeholder="Adicionar tarefa rápida para hoje..."
+              className="flex-1 px-3.5 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+            />
+            <button
+              type="submit"
+              disabled={!quickTaskTitle.trim()}
+              className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+            >
+              Adicionar
+            </button>
+          </form>
+
+          {/* Today Tasks List */}
+          {todayTasks.length === 0 ? (
+            <div className="py-8 text-center text-zinc-400 dark:text-zinc-500 space-y-1">
+              <CheckCircle2 className="w-8 h-8 mx-auto stroke-1 opacity-40 mb-1" />
+              <p className="text-xs font-medium">Nenhuma tarefa marcada para hoje.</p>
+              <p className="text-[11px]">Digite acima para adicionar um novo afazer.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todayTasks.map((t) => (
                 <div
-                  className={`text-xl font-bold tracking-tight mt-0.5 ${
-                    balance >= 0 ? 'text-zinc-900 dark:text-zinc-100' : 'text-rose-600'
+                  key={t.id}
+                  onClick={() => toggleTaskCompletion(t.id)}
+                  className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer select-none ${
+                    t.completed
+                      ? 'bg-zinc-50/60 dark:bg-zinc-850/40 border-zinc-100 dark:border-zinc-800/60 opacity-60'
+                      : 'bg-white dark:bg-zinc-800/40 border-zinc-200/80 dark:border-zinc-700/80 hover:border-indigo-400'
                   }`}
                 >
-                  {formatBRL(balance)}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
-                  <span className="text-zinc-500 block">Receitas</span>
-                  <span className="font-bold text-emerald-600 text-sm">
-                    {formatBRL(totalIncome)}
-                  </span>
-                </div>
-                <div className="p-3 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30">
-                  <span className="text-zinc-500 block">Despesas</span>
-                  <span className="font-bold text-rose-600 text-sm">
-                    {formatBRL(totalExpense)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* WIDGET 4: Próximos Compromissos da Agenda */}
-        {isWidgetVisible('schedule') && (
-          <div className="lg:col-span-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                  Google Agenda
-                </h3>
-              </div>
-              <button
-                onClick={() => setCurrentTab('agenda')}
-                className="text-xs font-semibold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>Ver agenda</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {calendarEvents.length === 0 ? (
-              <div className="p-6 text-center text-zinc-400 space-y-2 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
-                <p className="text-xs">Nenhum evento agendado para os próximos dias.</p>
-                <button
-                  onClick={() => setCurrentTab('agenda')}
-                  className="text-xs font-semibold text-indigo-600 hover:underline cursor-pointer"
-                >
-                  + Agendar compromisso
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {calendarEvents.slice(0, 4).map((ev) => {
-                  const startTime = ev.start?.dateTime
-                    ? new Date(ev.start.dateTime).toLocaleTimeString('pt-BR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : 'Dia todo';
-
-                  const dateFormatted = ev.start?.dateTime
-                    ? new Date(ev.start.dateTime).toLocaleDateString('pt-BR', {
-                        day: 'numeric',
-                        month: 'short',
-                      })
-                    : ev.start?.date || '';
-
-                  return (
-                    <div
-                      key={ev.id}
-                      className="p-3 rounded-xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 text-xs"
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      type="button"
+                      className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                        t.completed
+                          ? 'bg-emerald-600 text-white'
+                          : 'border border-zinc-300 dark:border-zinc-600'
+                      }`}
                     >
-                      <div className="flex items-center justify-between font-semibold text-zinc-900 dark:text-zinc-100">
-                        <span className="truncate pr-2">{ev.summary}</span>
-                        <span className="text-indigo-600 dark:text-indigo-400 shrink-0">
-                          {startTime}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-zinc-400 mt-0.5 block">
-                        {dateFormatted} {ev.location ? `• ${ev.location}` : ''}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                      {t.completed && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    </button>
+                    <span
+                      className={`text-xs font-medium truncate ${
+                        t.completed
+                          ? 'line-through text-zinc-400 dark:text-zinc-500'
+                          : 'text-zinc-800 dark:text-zinc-200'
+                      }`}
+                    >
+                      {t.title}
+                    </span>
+                  </div>
 
-        {/* WIDGET 5: Bloco de Rascunhos / Post-its Coloridos */}
-        {isWidgetVisible('scratchpad') && (
-          <div className="lg:col-span-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
+                  {t.dueTime && (
+                    <span className="text-[10px] font-semibold text-zinc-400 flex items-center gap-1 shrink-0">
+                      <Clock className="w-3 h-3" />
+                      {t.dueTime}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Coluna 3: Post-its & Rascunhos Rápidos */}
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-3">
               <div className="flex items-center gap-2">
                 <StickyNote className="w-5 h-5 text-amber-500" />
-                <div>
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                    Bloco de Rascunhos & Post-its
-                  </h3>
-                  <p className="text-[11px] text-zinc-400">
-                    Modifique livremente suas ideias com cores de destaque e converta em tarefas
-                  </p>
-                </div>
+                <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  Post-its Rápidos
+                </h2>
               </div>
 
               <button
                 onClick={() => setIsNewDraftOpen(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                title="Novo Post-it"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Novo Post-it</span>
+                <Plus className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Quick Drafts Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {draftNotes.map((draft) => {
-                const isEditing = activeEditingDraftId === draft.id;
-                const noteColor = draft.color || '#fef08a';
-
-                return (
+            {/* Post-it Cards */}
+            {draftNotes.length === 0 ? (
+              <div className="py-8 text-center text-zinc-400 dark:text-zinc-500 space-y-1">
+                <StickyNote className="w-8 h-8 mx-auto stroke-1 opacity-40 mb-1" />
+                <p className="text-xs font-medium">Nenhum rascunho ativo.</p>
+                <p className="text-[11px]">Guarde notas e pensamentos livres.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+                {draftNotes.slice(0, 4).map((draft) => (
                   <div
                     key={draft.id}
-                    style={{ backgroundColor: noteColor }}
-                    className="p-4 rounded-2xl border border-black/10 text-zinc-900 shadow-xs flex flex-col justify-between group transition-transform hover:scale-[1.01] relative"
+                    style={{ backgroundColor: draft.color || '#fef08a' }}
+                    className="p-3 rounded-2xl border border-black/10 text-zinc-900 shadow-xs flex flex-col justify-between group relative"
                   >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={draft.title}
-                            onChange={(e) => updateDraftNote(draft.id, { title: e.target.value })}
-                            className="text-xs font-bold w-full bg-white/80 px-2 py-1 rounded border border-zinc-300 text-zinc-900 focus:outline-none"
-                          />
-                        ) : (
-                          <h4 className="text-xs font-bold text-zinc-900 truncate">
-                            {draft.title}
-                          </h4>
-                        )}
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          {/* Color Switcher */}
-                          <div className="relative group/color">
-                            <button
-                              title="Mudar cor do post-it"
-                              className="p-1 rounded opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-900 cursor-pointer"
-                            >
-                              <Palette className="w-3 h-3" />
-                            </button>
-                            <div className="absolute right-0 top-6 hidden group-hover/color:flex bg-white dark:bg-zinc-800 p-1.5 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 gap-1 z-30">
-                              {POSTIT_COLORS.map((c) => (
-                                <button
-                                  key={c.hex}
-                                  type="button"
-                                  onClick={() => updateDraftNote(draft.id, { color: c.hex })}
-                                  className="w-4 h-4 rounded-full border border-black/20 cursor-pointer hover:scale-125 transition-transform"
-                                  style={{ backgroundColor: c.hex }}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => togglePinDraft(draft.id)}
-                            title={draft.isPinned ? 'Desafixar' : 'Fixar'}
-                            className={`p-1 rounded cursor-pointer ${
-                              draft.isPinned
-                                ? 'text-amber-800 font-bold'
-                                : 'text-zinc-500 opacity-0 group-hover:opacity-100'
-                            }`}
-                          >
-                            <Pin className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => setActiveEditingDraftId(isEditing ? null : draft.id)}
-                            title="Editar texto"
-                            className="text-zinc-500 hover:text-zinc-900 p-1 opacity-0 group-hover:opacity-100 cursor-pointer"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => deleteDraftNote(draft.id)}
-                            title="Excluir rascunho"
-                            className="text-zinc-500 hover:text-rose-600 p-1 opacity-0 group-hover:opacity-100 cursor-pointer"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <h4 className="text-xs font-bold text-zinc-900 truncate">
+                        {draft.title}
+                      </h4>
+                      <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100">
+                        <button
+                          onClick={() => deleteDraftNote(draft.id)}
+                          className="p-0.5 text-zinc-600 hover:text-rose-700 cursor-pointer"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
-
-                      {isEditing ? (
-                        <textarea
-                          rows={4}
-                          value={draft.content}
-                          onChange={(e) => updateDraftNote(draft.id, { content: e.target.value })}
-                          className="w-full text-xs bg-white/90 p-2 rounded-xl border border-zinc-300 text-zinc-900 resize-none focus:outline-none"
-                        />
-                      ) : (
-                        <p className="text-xs text-zinc-800 whitespace-pre-wrap leading-relaxed line-clamp-4 font-normal">
-                          {draft.content || '(Vazio)'}
-                        </p>
-                      )}
                     </div>
 
-                    <div className="mt-3 pt-2 border-t border-black/10 flex items-center justify-between text-[10px] text-zinc-600">
-                      <span>
-                        {new Date(draft.updatedAt).toLocaleDateString('pt-BR')}
-                      </span>
+                    <p className="text-xs text-zinc-800 whitespace-pre-wrap leading-relaxed line-clamp-3">
+                      {draft.content || '(Vazio)'}
+                    </p>
+
+                    <div className="mt-2 pt-1.5 border-t border-black/10 flex items-center justify-between text-[10px] text-zinc-600">
+                      <span>{new Date(draft.updatedAt).toLocaleDateString('pt-BR')}</span>
                       <button
                         onClick={() => convertDraftToTask(draft)}
                         className="font-bold text-zinc-900 hover:underline cursor-pointer"
@@ -641,14 +430,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
                       </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* New Draft Modal */}
+      {/* Modal Novo Post-it */}
       {isNewDraftOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6">
@@ -658,7 +447,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
               </h3>
               <button
                 onClick={() => setIsNewDraftOpen(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600"
+                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -680,12 +469,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Conteúdo do Post-it
+                  Conteúdo
                 </label>
                 <textarea
                   rows={4}
                   required
-                  placeholder="Digite seus pensamentos ou rascunhos livremente..."
+                  placeholder="Escreva seu pensamento ou rascunho..."
                   value={newDraftContent}
                   onChange={(e) => setNewDraftContent(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none resize-none"
@@ -694,7 +483,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1.5">
-                  Cor do Post-it
+                  Cor
                 </label>
                 <div className="flex items-center gap-2">
                   {POSTIT_COLORS.map((c) => (

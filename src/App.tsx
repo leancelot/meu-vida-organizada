@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { AppProvider } from './context/AppContext';
 import { Header } from './components/Header';
 import { MobileNav } from './components/MobileNav';
@@ -21,6 +23,30 @@ const MainApp: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+
+  // Hardware Back Button no Android nativo
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let sub: any = null;
+    CapApp.addListener('backButton', () => {
+      if (isNotificationCenterOpen) {
+        setIsNotificationCenterOpen(false);
+      } else if (isSyncModalOpen) {
+        setIsSyncModalOpen(false);
+      } else if (currentTab !== 'dashboard') {
+        setCurrentTab('dashboard');
+      } else {
+        CapApp.exitApp();
+      }
+    }).then((s) => {
+      sub = s;
+    }).catch(() => {});
+
+    return () => {
+      if (sub && sub.remove) sub.remove();
+    };
+  }, [isNotificationCenterOpen, isSyncModalOpen, currentTab]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors selection:bg-indigo-500 selection:text-white">

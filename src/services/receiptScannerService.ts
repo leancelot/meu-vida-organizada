@@ -16,7 +16,9 @@ export async function scanReceiptWithAI(file: File): Promise<ParsedReceiptData> 
   const base64 = await fileToBase64(file);
 
   // If running inside native mobile wrapper (Capacitor/Cordova), use hosted backend URL
-  const baseUrl = import.meta.env.VITE_APP_URL || '';
+  const defaultHostedUrl = 'https://ais-pre-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app';
+  const isLocalOrigin = typeof window !== 'undefined' && (window.location.origin.includes('localhost') || window.location.protocol === 'capacitor:');
+  const baseUrl = import.meta.env.VITE_APP_URL || (isLocalOrigin ? defaultHostedUrl : '');
   const endpoint = `${baseUrl}/api/gemini/parse-receipt`;
 
   const res = await fetch(endpoint, {

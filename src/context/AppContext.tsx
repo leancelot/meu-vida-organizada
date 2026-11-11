@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { User } from 'firebase/auth';
 import {
   TaskItem,
@@ -474,10 +475,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
-  // Web Notifications state
+  // Web & Native Android Notifications state
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
     return getNotificationPermission();
   });
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
+        LocalNotifications.checkPermissions()
+          .then((status) => {
+            const perm: NotificationPermission =
+              status.display === 'granted'
+                ? 'granted'
+                : status.display === 'denied'
+                ? 'denied'
+                : 'default';
+            setNotificationPermission(perm);
+          })
+          .catch(() => {});
+      });
+    }
+  }, []);
 
   const [notificationsList, setNotificationsList] = useState<AppNotification[]>(() => {
     try {
