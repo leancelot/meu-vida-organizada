@@ -128,12 +128,12 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Right actions: Theme Toggle, Notifications, Cloud Sync, Google Auth */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Theme Toggle (Dark / Light) */}
             <button
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Mudar para tema Claro' : 'Mudar para tema Escuro'}
-              className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
             >
               {theme === 'dark' ? (
                 <Sun className="w-4 h-4 text-amber-400" />
@@ -142,14 +142,14 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Install / APK / Packaging Guide Button */}
+            {/* Install / APK / Packaging Guide Button - Desktop only (available in Ajustes on mobile) */}
             <button
               onClick={openInstallModal}
               title="Instalar no celular / Gerar APK no GitHub"
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900 text-xs font-semibold transition-colors cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900 text-xs font-semibold transition-colors cursor-pointer"
             >
               <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="hidden sm:inline">Instalar App</span>
+              <span className="hidden lg:inline">Instalar App</span>
             </button>
 
             {/* Notification API control */}
@@ -160,7 +160,7 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'Notificações visuais ativas'
                   : 'Clique para ativar notificações no navegador'
               }
-              className={`relative p-2 rounded-xl border transition-colors cursor-pointer ${
+              className={`relative p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                 notificationPermission === 'granted'
                   ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700'
                   : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 border-amber-200 dark:border-amber-800 animate-pulse'
@@ -174,11 +174,11 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Cloud Sync Status Indicator */}
+            {/* Cloud Sync Status Indicator - Desktop only */}
             <button
               onClick={openSyncModal}
               title="Gerenciar sincronização com Google Drive"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${
+              className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${
                 driveSyncInfo.status === 'syncing'
                   ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
                   : driveSyncInfo.status === 'cloud_newer'
@@ -191,40 +191,46 @@ export const Header: React.FC<HeaderProps> = ({
               {driveSyncInfo.status === 'syncing' ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-500" />
-                  <span className="hidden sm:inline">Sincronizando...</span>
+                  <span className="hidden lg:inline">Sincronizando...</span>
                 </>
               ) : driveSyncInfo.status === 'cloud_newer' ? (
                 <>
                   <CloudAlert className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="hidden sm:inline">Nuvem atualizada</span>
+                  <span className="hidden lg:inline">Nuvem atualizada</span>
                 </>
               ) : user ? (
                 <>
                   <CloudCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="hidden sm:inline">Drive Conectado</span>
+                  <span className="hidden lg:inline">Drive Conectado</span>
                 </>
               ) : (
                 <>
                   <CloudOff className="w-3.5 h-3.5 text-zinc-400" />
-                  <span className="hidden sm:inline">Nuvem Desconectada</span>
+                  <span className="hidden lg:inline">Nuvem Desconectada</span>
                 </>
               )}
             </button>
 
             {/* Google Account Profile or Sign In Button */}
             {user ? (
-              <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 rounded-xl p-1 pr-3">
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'Usuário'}
-                    className="w-7 h-7 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center">
-                    {(user.displayName || user.email || 'U')[0].toUpperCase()}
-                  </div>
-                )}
+              <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 rounded-xl p-1 sm:pr-3">
+                <button
+                  onClick={openSyncModal}
+                  title="Ver status da conta"
+                  className="cursor-pointer"
+                >
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || 'Usuário'}
+                      className="w-8 h-8 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center">
+                      {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                    </div>
+                  )}
+                </button>
                 <div className="hidden lg:block text-left">
                   <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[120px]">
                     {user.displayName || 'Usuário'}
@@ -236,19 +242,19 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={signOut}
                   title="Sair da conta Google"
-                  className="p-1 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors ml-1 cursor-pointer"
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={signInWithGoogle}
                 disabled={isAuthenticating}
-                className="gsi-material-button inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-200 text-xs font-medium shadow-xs transition-colors cursor-pointer"
+                className="gsi-material-button inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-200 text-xs font-medium shadow-xs transition-colors cursor-pointer shrink-0"
               >
                 <svg
-                  className="w-4 h-4"
+                  className="w-4 h-4 shrink-0"
                   viewBox="0 0 48 48"
                   xmlns="http://www.w3.org/2000/svg"
                 >
@@ -270,7 +276,8 @@ export const Header: React.FC<HeaderProps> = ({
                   />
                   <path fill="none" d="M0 0h48v48H0z" />
                 </svg>
-                <span>{isAuthenticating ? 'Conectando...' : 'Conectar Google'}</span>
+                <span className="hidden sm:inline">{isAuthenticating ? 'Conectando...' : 'Conectar Google'}</span>
+                <span className="sm:hidden text-[11px] font-semibold">{isAuthenticating ? '...' : 'Entrar'}</span>
               </button>
             )}
           </div>

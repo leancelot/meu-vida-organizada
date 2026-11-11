@@ -243,25 +243,45 @@ export const FinanceView: React.FC = () => {
   return (
     <div className="space-y-6 pb-20">
       {/* Month Selector Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-            <Wallet className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Controle Financeiro
-            </span>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                Controle Financeiro
+              </span>
+              <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
                 {capitalizedMonth}
               </h2>
             </div>
           </div>
+
+          {/* Month Stepper - Mobile right inline */}
+          <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1 sm:hidden">
+            <button
+              onClick={prevMonth}
+              title="Mês anterior"
+              className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={nextMonth}
+              title="Próximo mês"
+              className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
+        {/* Action Buttons Row */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1">
+          {/* Month Stepper - Desktop */}
+          <div className="hidden sm:flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1">
             <button
               onClick={prevMonth}
               title="Mês anterior"
@@ -301,107 +321,106 @@ export const FinanceView: React.FC = () => {
           <button
             onClick={() => setIsScannerOpen(true)}
             title="Escanear Nota Fiscal ou Cupom com Inteligência Artificial"
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-            <span>Ler Nota com IA</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse shrink-0" />
+            <span>Ler Nota</span>
           </button>
 
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Nova Transação</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>Nova</span>
           </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards - 2 cols on mobile, 4 cols on desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Saldo Atual */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Saldo Líquido</span>
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate">Saldo</span>
             <div
-              className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
                 balance >= 0
                   ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600'
                   : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600'
               }`}
             >
-              <DollarSign className="w-4 h-4" />
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
           <div
-            className={`text-2xl font-bold tracking-tight ${
+            className={`text-lg sm:text-2xl font-bold tracking-tight truncate tabular-nums ${
               balance >= 0 ? 'text-zinc-900 dark:text-zinc-100' : 'text-rose-600 dark:text-rose-400'
             }`}
           >
             {formatBRL(balance)}
           </div>
-          <div className="mt-2 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400">
             {balance >= 0 ? (
               <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
-                <TrendingUp className="w-3.5 h-3.5" />
+                <TrendingUp className="w-3 h-3" />
                 Superávit
               </span>
             ) : (
               <span className="text-rose-600 font-semibold flex items-center gap-0.5">
-                <TrendingDown className="w-3.5 h-3.5" />
+                <TrendingDown className="w-3 h-3" />
                 Déficit
               </span>
             )}
-            <span>neste mês</span>
           </div>
         </div>
 
         {/* Receitas */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Receitas</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
-              <ArrowUpRight className="w-4 h-4" />
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate">Receitas</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0">
+              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+          <div className="text-lg sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 truncate tabular-nums">
             {formatBRL(totalIncome)}
           </div>
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400">
             {monthlyTransactions.filter((t) => t.type === 'receita').length} entrada(s)
           </p>
         </div>
 
         {/* Despesas */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Despesas</span>
-            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center">
-              <ArrowDownRight className="w-4 h-4" />
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate">Despesas</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0">
+              <ArrowDownRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400">
+          <div className="text-lg sm:text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400 truncate tabular-nums">
             {formatBRL(totalExpense)}
           </div>
-          <div className="mt-2 text-[11px] text-zinc-400 flex items-center gap-2">
-            <span>Fixas: {formatBRL(fixedExpenses)}</span>
+          <div className="mt-1 text-[10px] sm:text-[11px] text-zinc-400 flex items-center gap-1.5 truncate">
+            <span>Fix: {formatBRL(fixedExpenses)}</span>
             <span>•</span>
             <span>Var: {formatBRL(variableExpenses)}</span>
           </div>
         </div>
 
         {/* Taxa de Poupança */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Taxa Poupada</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center">
-              <PiggyBank className="w-4 h-4" />
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1.5">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate">Poupança</span>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center shrink-0">
+              <PiggyBank className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
+          <div className="text-lg sm:text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400 tabular-nums">
             {savingsRate}%
           </div>
-          <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-3">
+          <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-2">
             <div
               className="bg-indigo-600 h-full rounded-full transition-all"
               style={{ width: `${Math.min(100, savingsRate)}%` }}

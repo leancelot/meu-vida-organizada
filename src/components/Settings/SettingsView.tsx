@@ -337,7 +337,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 Repositório GitHub (usuario/repositorio)
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400 text-xs font-mono">
                     github.com/
@@ -347,15 +347,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     value={repoInput}
                     onChange={(e) => setRepoInput(e.target.value)}
                     placeholder="souoleandro/meu-vida-organizada"
-                    className="w-full pl-24 pr-4 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                    className="w-full pl-24 pr-3 py-2.5 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                   />
                 </div>
                 <button
                   onClick={handleSaveConfig}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  <span>Salvar</span>
+                  <span>Salvar Configuração</span>
                 </button>
               </div>
               <p className="text-[11px] text-zinc-400 mt-1">

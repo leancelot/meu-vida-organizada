@@ -31,7 +31,7 @@ const MainApp: React.FC = () => {
         openInstallModal={() => setIsInstallModalOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-28 md:pb-12">
         {currentTab === 'dashboard' && <DashboardView setCurrentTab={setCurrentTab} />}
         {currentTab === 'tarefas' && <TasksView />}
         {currentTab === 'financas' && <FinanceView />}

@@ -45,7 +45,15 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({ setCurrentTab })
 
   return (
     <>
-      <div className="fixed bottom-20 md:bottom-8 right-5 z-40 flex flex-col items-end gap-2">
+      {/* Backdrop overlay to dismiss speed dial when tapping outside */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      <div className="fixed bottom-20 md:bottom-8 right-4 sm:right-6 z-40 flex flex-col items-end gap-2">
         {/* Speed Dial Options */}
         {isOpen && (
           <div className="flex flex-col items-end gap-2 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200">

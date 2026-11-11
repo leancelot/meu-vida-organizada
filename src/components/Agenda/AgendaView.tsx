@@ -153,12 +153,12 @@ export const AgendaView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {user ? (
             <button
               onClick={() => refreshCalendar()}
               disabled={isLoadingCalendar}
-              className="p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
               title="Atualizar Google Agenda"
             >
               <RefreshCw className={`w-4 h-4 ${isLoadingCalendar ? 'animate-spin' : ''}`} />
@@ -166,13 +166,13 @@ export const AgendaView: React.FC = () => {
           ) : (
             <button
               onClick={signInWithGoogle}
-              className="text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer"
+              className="text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer shrink-0"
             >
-              Conectar Google Agenda
+              Conectar Agenda
             </button>
           )}
 
-          <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold">
+          <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold shrink-0">
             <button
               onClick={() => setViewMode('agenda')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
@@ -197,10 +197,10 @@ export const AgendaView: React.FC = () => {
 
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Novo Evento</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>Novo Evento</span>
           </button>
         </div>
       </div>
