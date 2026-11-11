@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { User } from 'firebase/auth';
 import {
   TaskItem,
@@ -15,6 +17,7 @@ import {
 import {
   initAuth,
   googleSignIn,
+  completeNativeGoogleAuth,
   logout as fbLogout,
   getAccessToken,
 } from '../services/firebase';
@@ -578,6 +581,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
+  // Handle native Android deep-link OAuth callback (com.vidaorganizada.app://oauth#access_token=...)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let isMounted = true;
+    const setupListener = async () => {
+      const handle = await CapApp.addListener('appUrlOpen', async (data) => {
+        if (!isMounted || !data.url) return;
+
+        try {
+          if (data.url.includes('com.vidaorganizada.app')) {
+            const raw = data.url;
+            const hashIdx = raw.indexOf('#');
+            const queryIdx = raw.indexOf('?');
+            const searchStr =
+              hashIdx !== -1
+                ? raw.substring(hashIdx + 1)
+                : queryIdx !== -1
+                ? raw.substring(queryIdx + 1)
+                : '';
+            const params = new URLSearchParams(searchStr);
+
+            const token = params.get('access_token');
+            const idToken = params.get('id_token');
+
+            try {
+              await Browser.close();
+            } catch {
+              // ignore
+            }
+
+            if (token) {
+              setIsAuthenticating(true);
+              const loggedUser = await completeNativeGoogleAuth(token, idToken);
+              setAccessToken(token);
+              if (loggedUser) {
+                setUser(loggedUser);
+              }
+
+              confetti({ particleCount: 35, spread: 60, origin: { y: 0.8 } });
+
+              try {
+                const driveFile = await findDriveBackupFile(token);
+                if (driveFile) {
+                  setDriveSyncInfo((prev) => ({
+                    ...prev,
+                    fileId: driveFile.id,
+                    remoteModifiedAt: driveFile.modifiedTime,
+                    status: 'cloud_newer',
+                  }));
+                }
+              } catch (e) {
+                console.warn('Erro ao consultar Drive pós deep link:', e);
+              }
+
+              try {
+                const events = await listCalendarEvents(token);
+                setCalendarEvents(events);
+              } catch (e) {
+                console.warn('Erro ao consultar Agenda pós deep link:', e);
+              }
+
+              const successNotif: AppNotification = {
+                id: 'notif-auth-ok-' + Date.now(),
+                title: '🎉 Google Conectado com Sucesso',
+                body: 'Sua conta Google foi sincronizada. Google Drive e Agenda estão ativos.',
+                timestamp: new Date().toISOString(),
+                type: 'reminder',
+                read: false,
+              };
+              setNotificationsList((prev) => [successNotif, ...prev]);
+            }
+          }
+        } catch (err: any) {
+          console.error('Falha ao processar login nativo do Google:', err);
+        } finally {
+          setIsAuthenticating(false);
+        }
+      });
+
+      return handle;
+    };
+
+    const promise = setupListener();
+    return () => {
+      isMounted = false;
+      promise.then((h) => h?.remove());
+    };
+  }, []);
+
+
   // Fetch Calendar events when accessToken is available
   const refreshCalendar = useCallback(async () => {
     const token = accessToken || (await getAccessToken());
@@ -895,7 +989,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAuthenticating(true);
     try {
       const result = await googleSignIn();
-      if (result) {
+      if (!result) return;
+
+      if ((result as any).isNativeRedirect) {
+        // Redirecionado para Chrome seguro (Custom Tab); o listener appUrlOpen concluirá a autenticação
+        return;
+      }
+
+      if (result.user && result.accessToken) {
         setUser(result.user);
         setAccessToken(result.accessToken);
         try {

@@ -303,9 +303,9 @@ export const TasksView: React.FC = () => {
           <div className="flex items-center gap-2.5">
             <Bell className="w-5 h-5 text-amber-600 shrink-0 animate-bounce" />
             <div>
-              <span className="font-bold">Ative os lembretes do navegador</span>
+              <span className="font-bold">Lembretes e Alertas Visuais</span>
               <p className="text-amber-700 dark:text-amber-300">
-                Receba alertas sonoros e notificações na tela quando o horário de uma tarefa ou reunião estiver se aproximando.
+                Receba alertas visuais no dispositivo quando o horário de uma tarefa ou compromisso estiver se aproximando.
               </p>
             </div>
           </div>

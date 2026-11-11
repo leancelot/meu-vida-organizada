@@ -2,10 +2,13 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   signInWithPopup,
+  signInWithCredential,
   GoogleAuthProvider,
   onAuthStateChanged,
   User,
 } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
@@ -32,6 +35,10 @@ provider.setCustomParameters({
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
 
+export const setSessionToken = (token: string | null) => {
+  cachedAccessToken = token;
+};
+
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
@@ -51,9 +58,27 @@ export const initAuth = (
   });
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+export const googleSignIn = async (): Promise<{ user: User; accessToken: string; isNativeRedirect?: boolean } | null> => {
   try {
     isSigningIn = true;
+
+    // Se estiver rodando nativamente no Android (Capacitor APK)
+    if (Capacitor.isNativePlatform()) {
+      const redirectUri = 'https://ais-pre-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app/oauth-callback.html';
+      const clientId = firebaseConfig.oAuthClientId;
+      const scopesEncoded = encodeURIComponent(
+        ['openid', 'email', 'profile', ...SCOPES].join(' ')
+      );
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+        redirectUri
+      )}&response_type=token%20id_token&scope=${scopesEncoded}&prompt=select_account&nonce=${Date.now()}`;
+
+      // Abre no Chrome seguro (Custom Tab), prevenindo tela branca do WebView embutido
+      await Browser.open({ url: authUrl, windowName: '_system' });
+      return { isNativeRedirect: true } as any;
+    }
+
+    // Fluxo padrão para Navegador Web Desktop / Dev
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
@@ -77,6 +102,45 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   }
 };
 
+export const completeNativeGoogleAuth = async (
+  accessToken: string,
+  idToken?: string | null
+): Promise<User | null> => {
+  cachedAccessToken = accessToken;
+
+  if (idToken) {
+    try {
+      const credential = GoogleAuthProvider.credential(idToken, accessToken);
+      const result = await signInWithCredential(auth, credential);
+      return result.user;
+    } catch (e) {
+      console.warn('signInWithCredential fallback:', e);
+    }
+  }
+
+  // Se não houver idToken ou falhar, buscamos dados via Google UserInfo API
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const syntheticUser = {
+        uid: data.sub || 'google-user-' + Date.now(),
+        displayName: data.name || data.given_name || 'Usuário Google',
+        email: data.email || '',
+        photoURL: data.picture || null,
+        emailVerified: Boolean(data.email_verified),
+      } as unknown as User;
+      return syntheticUser;
+    }
+  } catch (err) {
+    console.error('Erro ao buscar perfil Google via access token:', err);
+  }
+
+  return null;
+};
+
 export const getAccessToken = async (): Promise<string | null> => {
   return cachedAccessToken;
 };
@@ -85,3 +149,4 @@ export const logout = async () => {
   await auth.signOut();
   cachedAccessToken = null;
 };
+

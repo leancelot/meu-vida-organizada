@@ -13,8 +13,19 @@
     <meta name="apple-mobile-web-app-title" content="VidaOrganizada" />
     <meta name="theme-color" content="#4f46e5" />
     <link rel="manifest" href="/manifest.json" />
-    <script type="module" crossorigin src="/assets/index-DsVziI2v.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-rFBXZV7Y.css">
+    <script>
+      (function() {
+        if (window.location.hash && window.location.hash.indexOf('access_token=') !== -1) {
+          // Se carregado em navegador externo mobile durante o fluxo de autenticação
+          if (/Android|iPhone|iPad/i.test(navigator.userAgent) && !window.Capacitor?.isNativePlatform?.()) {
+            var deepLink = 'com.vidaorganizada.app://oauth' + window.location.hash;
+            window.location.href = deepLink;
+          }
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-CttNMKnY.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CZr0LaOU.css">
   </head>
   <body>
     <div id="root"></div>
