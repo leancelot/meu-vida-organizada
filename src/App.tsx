@@ -13,14 +13,14 @@ import { FinanceView } from './components/Finance/FinanceView';
 import { AgendaView } from './components/Agenda/AgendaView';
 import { SettingsView } from './components/Settings/SettingsView';
 import { DriveSyncModal } from './components/DriveSync/DriveSyncModal';
-import { InstallGuideModal } from './components/Install/InstallGuideModal';
+import { NotificationCenterModal } from './components/Notifications/NotificationCenterModal';
 import { QuickActionFab } from './components/Common/QuickActionFab';
 import { ToastUndo } from './components/Common/ToastUndo';
 
 const MainApp: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors selection:bg-indigo-500 selection:text-white">
@@ -28,7 +28,7 @@ const MainApp: React.FC = () => {
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         openSyncModal={() => setIsSyncModalOpen(true)}
-        openInstallModal={() => setIsInstallModalOpen(true)}
+        openNotificationCenter={() => setIsNotificationCenterOpen(true)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-28 md:pb-12">
@@ -39,7 +39,7 @@ const MainApp: React.FC = () => {
         {currentTab === 'configuracoes' && (
           <SettingsView
             openSyncModal={() => setIsSyncModalOpen(true)}
-            openInstallModal={() => setIsInstallModalOpen(true)}
+            openNotificationCenter={() => setIsNotificationCenterOpen(true)}
           />
         )}
       </main>
@@ -61,13 +61,12 @@ const MainApp: React.FC = () => {
       <DriveSyncModal
         isOpen={isSyncModalOpen}
         onClose={() => setIsSyncModalOpen(false)}
-        onOpenInstallModal={() => setIsInstallModalOpen(true)}
       />
 
-      {/* Mobile Packaging & APK Install Guide */}
-      <InstallGuideModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
+      {/* Interactive Notification Center */}
+      <NotificationCenterModal
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
       />
     </div>
   );

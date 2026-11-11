@@ -3,8 +3,8 @@ import {
   CalendarDays,
   CheckSquare,
   CircleDollarSign,
-  FolderGit2,
   LayoutGrid,
+  Sliders,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -41,7 +41,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           }`}
         >
           <LayoutGrid className="w-5 h-5" />
-          <span className="text-[10px] font-medium tracking-tight mt-0.5">Dashboard</span>
+          <span className="text-[10px] font-medium tracking-tight mt-0.5">Início</span>
         </button>
 
         <button
@@ -96,7 +96,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           }`}
         >
           <div className="relative">
-            <FolderGit2 className="w-5 h-5" />
+            <Sliders className="w-5 h-5" />
             {driveSyncInfo.status === 'cloud_newer' && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
             )}

@@ -900,7 +900,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     } catch (err: any) {
-      console.error('Erro de login:', err);
+      console.warn('Aviso de login:', err);
+      const userMessage =
+        err?.message?.includes('popup') || err?.code === 'auth/popup-blocked'
+          ? 'O navegador bloqueou a janela de login. Por favor, permita pop-ups para conectar com o Google.'
+          : 'Não foi possível completar o login com o Google no momento. O app continuará funcionando normalmente no modo local.';
+
+      const newNotif: AppNotification = {
+        id: 'notif-auth-' + Date.now(),
+        title: 'Aviso de Login',
+        body: userMessage,
+        timestamp: new Date().toISOString(),
+        type: 'reminder',
+        read: false,
+      };
+      setNotificationsList((prev) => [newNotif, ...prev]);
     } finally {
       setIsAuthenticating(false);
     }

@@ -23,10 +23,9 @@ const provider = new GoogleAuthProvider();
 SCOPES.forEach((scope) => {
   provider.addScope(scope);
 });
-// Prompt consent if needed to ensure refresh of scopes
+// Select account without conflicting offline access_type
 provider.setCustomParameters({
-  prompt: 'consent',
-  access_type: 'offline',
+  prompt: 'select_account',
 });
 
 // In-memory token cache (never stored in localStorage or sessionStorage as required)
@@ -58,12 +57,19 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
-      throw new Error('Falha ao obter token de acesso do Google');
+      throw new Error('Falha ao obter token de acesso do Google.');
     }
 
     cachedAccessToken = credential.accessToken;
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
+    if (
+      error?.code === 'auth/popup-closed-by-user' ||
+      error?.code === 'auth/cancelled-popup-request'
+    ) {
+      // Usuário fechou o popup ou cancelou intencionalmente
+      return null;
+    }
     console.error('Erro na autenticação do Google:', error);
     throw error;
   } finally {

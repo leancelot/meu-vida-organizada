@@ -22,13 +22,11 @@ import { useApp } from '../../context/AppContext';
 interface DriveSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenInstallModal?: () => void;
 }
 
 export const DriveSyncModal: React.FC<DriveSyncModalProps> = ({
   isOpen,
   onClose,
-  onOpenInstallModal,
 }) => {
   const {
     user,
@@ -165,25 +163,11 @@ export const DriveSyncModal: React.FC<DriveSyncModalProps> = ({
         <div className="mb-5 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 text-xs text-zinc-600 dark:text-zinc-300 space-y-2">
           <div className="flex items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-100">
             <Smartphone className="w-4 h-4 text-indigo-600" />
-            <span>Sincronização em Tempo Real (Mobile & Desktop)</span>
+            <span>Sincronização em Nuvem Privada</span>
           </div>
           <p className="leading-relaxed">
-            Seus dados são salvos em um arquivo seguro chamado <code className="bg-zinc-200 dark:bg-zinc-700 px-1 py-0.5 rounded text-[11px] font-mono">VidaOrganizada_Data.json</code> na sua própria conta do Google Drive. Quando você atualiza tarefas no computador ou celular, as mudanças ficam disponíveis em todos os seus aparelhos conectados.
+            Seus dados são salvos de forma privada no seu próprio Google Drive. Quando você atualiza suas tarefas ou finanças, suas alterações ficam sincronizadas entre todos os seus dispositivos.
           </p>
-          {onOpenInstallModal && (
-            <div className="pt-1">
-              <button
-                onClick={() => {
-                  onClose();
-                  onOpenInstallModal();
-                }}
-                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
-              >
-                <span>Como instalar este app no celular (.APK / GitHub Actions)?</span>
-                <span>→</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Google Account Status */}

@@ -18,14 +18,14 @@ interface HeaderProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   openSyncModal: () => void;
-  openInstallModal: () => void;
+  openNotificationCenter: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   setCurrentTab,
   openSyncModal,
-  openInstallModal,
+  openNotificationCenter,
 }) => {
   const {
     theme,
@@ -35,8 +35,6 @@ export const Header: React.FC<HeaderProps> = ({
     signInWithGoogle,
     signOut,
     driveSyncInfo,
-    notificationPermission,
-    enableNotifications,
     notificationsList,
   } = useApp();
 
@@ -83,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
               }`}
             >
-              Dashboard
+              Início
             </button>
             <button
               onClick={() => setCurrentTab('tarefas')}
@@ -123,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
               }`}
             >
-              Atualizações & Ajustes
+              Ajustes
             </button>
           </nav>
 
@@ -142,33 +140,15 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Install / APK / Packaging Guide Button - Desktop only (available in Ajustes on mobile) */}
+            {/* Notification Center Trigger */}
             <button
-              onClick={openInstallModal}
-              title="Instalar no celular / Gerar APK no GitHub"
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900 text-xs font-semibold transition-colors cursor-pointer"
-            >
-              <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="hidden lg:inline">Instalar App</span>
-            </button>
-
-            {/* Notification API control */}
-            <button
-              onClick={enableNotifications}
-              title={
-                notificationPermission === 'granted'
-                  ? 'Notificações visuais ativas'
-                  : 'Clique para ativar notificações no navegador'
-              }
-              className={`relative p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
-                notificationPermission === 'granted'
-                  ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700'
-                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 border-amber-200 dark:border-amber-800 animate-pulse'
-              }`}
+              onClick={openNotificationCenter}
+              title="Central de Notificações & Lembretes"
+              className="relative p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
