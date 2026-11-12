@@ -38,6 +38,11 @@ import {
   requestNotificationPermission,
   sendWebNotification,
 } from '../services/notificationService';
+import {
+  hapticSuccess,
+  hapticWarning,
+  hapticImpactLight,
+} from '../services/hapticsService';
 import confetti from 'canvas-confetti';
 
 const STORAGE_KEY_DATA = 'vidaorganizada_local_data_v2';
@@ -1054,6 +1059,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...taskData,
       id: 'task-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
     };
+    hapticImpactLight();
     setTasks((prev) => [newTask, ...prev]);
     triggerAutoSync();
   };
@@ -1071,7 +1077,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (t.id === id) {
           const nextCompleted = !t.completed;
           if (nextCompleted) {
+            hapticSuccess();
             confetti({ particleCount: 25, spread: 50, origin: { y: 0.85 } });
+          } else {
+            hapticImpactLight();
           }
           return {
             ...t,
@@ -1089,6 +1098,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const taskToDelete = tasks.find((t) => t.id === id);
     if (!taskToDelete) return;
 
+    hapticWarning();
     setTasks((prev) => prev.filter((t) => t.id !== id));
     triggerAutoSync();
 
@@ -1119,6 +1129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...txData,
       id: 'tx-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
     };
+    hapticImpactLight();
     setTransactions((prev) => [newTx, ...prev]);
     triggerAutoSync();
   };
@@ -1127,6 +1138,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const txToDelete = transactions.find((tx) => tx.id === id);
     if (!txToDelete) return;
 
+    hapticWarning();
     setTransactions((prev) => prev.filter((tx) => tx.id !== id));
     triggerAutoSync();
 

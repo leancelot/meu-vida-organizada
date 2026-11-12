@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { TaskItem, GoogleCalendarEvent } from '../../types';
+import { hapticSelection, hapticImpactLight } from '../../services/hapticsService';
 
 interface DashboardViewProps {
   setCurrentTab: (tab: string) => void;
@@ -66,6 +67,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
     e.preventDefault();
     if (!quickTaskTitle.trim()) return;
 
+    hapticImpactLight();
     addTask({
       title: quickTaskTitle.trim(),
       dueDate: todayStr,
@@ -195,7 +197,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
 
           <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-0.5 rounded-xl text-[11px] font-medium">
             <button
-              onClick={() => setFilterMode('all')}
+              onClick={() => {
+                hapticSelection();
+                setFilterMode('all');
+              }}
               className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                 filterMode === 'all'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs font-semibold'
@@ -205,7 +210,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
               Todas ({todayTasks.length})
             </button>
             <button
-              onClick={() => setFilterMode('pending')}
+              onClick={() => {
+                hapticSelection();
+                setFilterMode('pending');
+              }}
               className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                 filterMode === 'pending'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs font-semibold'
@@ -215,7 +223,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
               Pendentes ({pendingTasks.length})
             </button>
             <button
-              onClick={() => setFilterMode('completed')}
+              onClick={() => {
+                hapticSelection();
+                setFilterMode('completed');
+              }}
               className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                 filterMode === 'completed'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs font-semibold'

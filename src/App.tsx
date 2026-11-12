@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { AppProvider } from './context/AppContext';
 import { Header } from './components/Header';
 import { MobileNav } from './components/MobileNav';
@@ -25,9 +26,12 @@ const MainApp: React.FC = () => {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
 
-  // Hardware Back Button no Android nativo
+  // Hardware Back Button e Status Bar no Android nativo
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+    StatusBar.setBackgroundColor({ color: '#09090b' }).catch(() => {});
 
     let sub: any = null;
     CapApp.addListener('backButton', () => {

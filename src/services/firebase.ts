@@ -64,8 +64,11 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string;
 
     // Se estiver rodando nativamente no Android (Capacitor APK)
     if (Capacitor.isNativePlatform()) {
-      // Abre o autenticador hospedado no domínio autorizado oficial pelo Google
-      const bridgeUrl = 'https://ais-pre-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app?connect_native=1';
+      // Abre o autenticador no servidor ativo do app
+      const baseUrl =
+        (import.meta.env.VITE_APP_URL as string) ||
+        'https://ais-dev-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app';
+      const bridgeUrl = `${baseUrl.replace(/\/$/, '')}?connect_native=1`;
       await Browser.open({ url: bridgeUrl, windowName: '_system' });
       return { isNativeRedirect: true } as any;
     }

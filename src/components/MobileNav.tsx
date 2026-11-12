@@ -7,6 +7,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { hapticSelection } from '../services/hapticsService';
 
 interface MobileNavProps {
   currentTab: string;
@@ -24,13 +25,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   const pendingToday = tasks.filter((t) => !t.completed && t.dueDate === todayStr).length;
 
   const handleTabClick = (tab: string) => {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      try {
-        navigator.vibrate(8);
-      } catch {
-        // ignore
-      }
-    }
+    hapticSelection();
     setCurrentTab(tab);
   };
 
