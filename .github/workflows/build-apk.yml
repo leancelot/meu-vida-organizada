@@ -34,6 +34,12 @@ jobs:
       - name: Instalar dependências
         run: npm install --legacy-peer-deps
 
+      - name: Preparar configuração do Firebase se ausente
+        run: |
+          if [ ! -f "firebase-applet-config.json" ] && [ -f "firebase-applet-config.example.json" ]; then
+            cp firebase-applet-config.example.json firebase-applet-config.json
+          fi
+
       - name: Compilar Web App (Vite)
         run: npm run build
         env:

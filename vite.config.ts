@@ -1,21 +1,45 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import fs from 'fs';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
+  // Se o arquivo local firebase-applet-config.json existir no disco (ignorado pelo git),
+  // carrega suas chaves em tempo de execução sem expor no repositório.
+  let localConfig: Record<string, string> = {};
+  const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    try {
+      localConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     plugins: [react(), tailwindcss()],
+    define: {
+      'import.meta.env.VITE_FIREBASE_API_KEY': JSON.stringify(
+        process.env.VITE_FIREBASE_API_KEY || localConfig.apiKey || ''
+      ),
+      'import.meta.env.VITE_FIREBASE_PROJECT_ID': JSON.stringify(
+        process.env.VITE_FIREBASE_PROJECT_ID || localConfig.projectId || 'gen-lang-client-0273340873'
+      ),
+      'import.meta.env.VITE_FIREBASE_APP_ID': JSON.stringify(
+        process.env.VITE_FIREBASE_APP_ID || localConfig.appId || ''
+      ),
+      'import.meta.env.VITE_FIREBASE_AUTH_DOMAIN': JSON.stringify(
+        process.env.VITE_FIREBASE_AUTH_DOMAIN || localConfig.authDomain || ''
+      ),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };

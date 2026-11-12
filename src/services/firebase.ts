@@ -9,15 +9,7 @@ import {
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
-import rawFirebaseConfig from '../../firebase-applet-config.json';
-
-// Merges optional environment variable overrides to keep keys out of git commits
-export const firebaseConfig = {
-  ...rawFirebaseConfig,
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || rawFirebaseConfig.apiKey,
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || rawFirebaseConfig.projectId,
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || rawFirebaseConfig.authDomain,
-};
+import { firebaseConfig } from '../config/firebaseConfig';
 
 // Initialize Firebase App
 export const app = initializeApp(firebaseConfig);
