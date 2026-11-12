@@ -9,7 +9,15 @@ import {
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
-import firebaseConfig from '../../firebase-applet-config.json';
+import rawFirebaseConfig from '../../firebase-applet-config.json';
+
+// Merges optional environment variable overrides to keep keys out of git commits
+export const firebaseConfig = {
+  ...rawFirebaseConfig,
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || rawFirebaseConfig.apiKey,
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || rawFirebaseConfig.projectId,
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || rawFirebaseConfig.authDomain,
+};
 
 // Initialize Firebase App
 export const app = initializeApp(firebaseConfig);
@@ -64,17 +72,9 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string;
 
     // Se estiver rodando nativamente no Android (Capacitor APK)
     if (Capacitor.isNativePlatform()) {
-      const redirectUri = 'https://ais-pre-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app/oauth-callback.html';
-      const clientId = firebaseConfig.oAuthClientId;
-      const scopesEncoded = encodeURIComponent(
-        ['openid', 'email', 'profile', ...SCOPES].join(' ')
-      );
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-        redirectUri
-      )}&response_type=token%20id_token&scope=${scopesEncoded}&prompt=select_account&nonce=${Date.now()}`;
-
-      // Abre no Chrome seguro (Custom Tab), prevenindo tela branca do WebView embutido
-      await Browser.open({ url: authUrl, windowName: '_system' });
+      // Abre o autenticador hospedado no domínio autorizado oficial pelo Google
+      const bridgeUrl = 'https://ais-pre-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app?connect_native=1';
+      await Browser.open({ url: bridgeUrl, windowName: '_system' });
       return { isNativeRedirect: true } as any;
     }
 

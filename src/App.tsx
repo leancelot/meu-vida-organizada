@@ -18,6 +18,7 @@ import { DriveSyncModal } from './components/DriveSync/DriveSyncModal';
 import { NotificationCenterModal } from './components/Notifications/NotificationCenterModal';
 import { QuickActionFab } from './components/Common/QuickActionFab';
 import { ToastUndo } from './components/Common/ToastUndo';
+import { NativeConnectBridge } from './components/Auth/NativeConnectBridge';
 
 const MainApp: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
@@ -99,9 +100,13 @@ const MainApp: React.FC = () => {
 };
 
 export default function App() {
+  const isConnectNative =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('connect_native') === '1';
+
   return (
     <AppProvider>
-      <MainApp />
+      {isConnectNative ? <NativeConnectBridge /> : <MainApp />}
     </AppProvider>
   );
 }

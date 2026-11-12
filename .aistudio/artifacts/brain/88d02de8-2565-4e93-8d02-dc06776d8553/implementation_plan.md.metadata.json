@@ -1,6 +1,0 @@
-{
-  "summary":  "Plano de implementação revisado para corrigir o botão de notificações (abrindo central interativa de lembretes e alertas), solucionar o erro de login com Google e reorganizar as funcionalidades do aplicativo em categorias intuitivas e estritamente voltadas ao usuário final, eliminando qualquer vestígio de instruções técnicas ou de desenvolvimento.",
-  "updatedAt":  "2026-11-11T09:48:20.001035116Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}
