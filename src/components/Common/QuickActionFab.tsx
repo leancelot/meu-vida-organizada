@@ -14,9 +14,13 @@ import { ReceiptScannerModal } from '../Finance/ReceiptScannerModal';
 
 interface QuickActionFabProps {
   setCurrentTab: (tab: string) => void;
+  onTriggerAgendaModal?: (mode: 'task' | 'event') => void;
 }
 
-export const QuickActionFab: React.FC<QuickActionFabProps> = ({ setCurrentTab }) => {
+export const QuickActionFab: React.FC<QuickActionFabProps> = ({
+  setCurrentTab,
+  onTriggerAgendaModal,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const { addDraftNote } = useApp();
   const [isQuickNoteModal, setIsQuickNoteModal] = useState(false);
@@ -87,7 +91,14 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({ setCurrentTab })
 
             {/* Agenda Event */}
             <button
-              onClick={() => handleAction('agenda')}
+              onClick={() => {
+                if (onTriggerAgendaModal) {
+                  onTriggerAgendaModal('event');
+                  setIsOpen(false);
+                } else {
+                  handleAction('agenda');
+                }
+              }}
               className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-all cursor-pointer text-xs font-semibold group"
             >
               <span>Novo Evento na Agenda</span>
@@ -109,7 +120,14 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({ setCurrentTab })
 
             {/* Task */}
             <button
-              onClick={() => handleAction('tarefas')}
+              onClick={() => {
+                if (onTriggerAgendaModal) {
+                  onTriggerAgendaModal('task');
+                  setIsOpen(false);
+                } else {
+                  handleAction('agenda');
+                }
+              }}
               className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-all cursor-pointer text-xs font-semibold group"
             >
               <span>Nova Tarefa</span>

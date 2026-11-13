@@ -7,14 +7,14 @@ import { useEffect, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { MobileNav } from './components/MobileNav';
 import { DashboardView } from './components/Dashboard/DashboardView';
-import { TasksView } from './components/Tasks/TasksView';
+import { AgendaTasksView } from './components/Agenda/AgendaTasksView';
 import { FinanceView } from './components/Finance/FinanceView';
-import { AgendaView } from './components/Agenda/AgendaView';
 import { SettingsView } from './components/Settings/SettingsView';
+import { OnboardingView } from './components/Onboarding/OnboardingView';
 import { DriveSyncModal } from './components/DriveSync/DriveSyncModal';
 import { NotificationCenterModal } from './components/Notifications/NotificationCenterModal';
 import { QuickActionFab } from './components/Common/QuickActionFab';
@@ -22,16 +22,27 @@ import { ToastUndo } from './components/Common/ToastUndo';
 import { NativeConnectBridge } from './components/Auth/NativeConnectBridge';
 
 const MainApp: React.FC = () => {
+  const { onboardingCompleted, theme } = useApp();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [agendaQuickOpen, setAgendaQuickOpen] = useState<'task' | 'event' | null>(null);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
 
-  // Hardware Back Button e Status Bar no Android nativo
+  // Sincronizar Status Bar no Android nativo com o tema atual
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    if (theme === 'dark') {
+      StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+      StatusBar.setBackgroundColor({ color: '#09090b' }).catch(() => {});
+    } else {
+      StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+      StatusBar.setBackgroundColor({ color: '#fafafa' }).catch(() => {});
+    }
+  }, [theme]);
 
-    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-    StatusBar.setBackgroundColor({ color: '#09090b' }).catch(() => {});
+  // Hardware Back Button no Android nativo
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
 
     let sub: any = null;
     CapApp.addListener('backButton', () => {
@@ -44,14 +55,20 @@ const MainApp: React.FC = () => {
       } else {
         CapApp.exitApp();
       }
-    }).then((s) => {
-      sub = s;
-    }).catch(() => {});
+    })
+      .then((s) => {
+        sub = s;
+      })
+      .catch(() => {});
 
     return () => {
       if (sub && sub.remove) sub.remove();
     };
   }, [isNotificationCenterOpen, isSyncModalOpen, currentTab]);
+
+  if (!onboardingCompleted) {
+    return <OnboardingView />;
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors selection:bg-indigo-500 selection:text-white">
@@ -64,9 +81,13 @@ const MainApp: React.FC = () => {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-28 md:pb-12">
         {currentTab === 'dashboard' && <DashboardView setCurrentTab={setCurrentTab} />}
-        {currentTab === 'tarefas' && <TasksView />}
+        {currentTab === 'agenda' && (
+          <AgendaTasksView
+            quickOpenModal={agendaQuickOpen}
+            onConsumeQuickOpen={() => setAgendaQuickOpen(null)}
+          />
+        )}
         {currentTab === 'financas' && <FinanceView />}
-        {currentTab === 'agenda' && <AgendaView />}
         {currentTab === 'configuracoes' && (
           <SettingsView
             openSyncModal={() => setIsSyncModalOpen(true)}
@@ -75,26 +96,27 @@ const MainApp: React.FC = () => {
         )}
       </main>
 
-      {/* Floating Action Button for Quick Creation */}
-      <QuickActionFab setCurrentTab={setCurrentTab} />
+      <QuickActionFab
+        setCurrentTab={setCurrentTab}
+        onTriggerAgendaModal={(mode) => {
+          setCurrentTab('agenda');
+          setAgendaQuickOpen(mode);
+        }}
+      />
 
-      {/* Undo Toast Notification */}
       <ToastUndo />
 
-      {/* Mobile Bottom Navigation */}
       <MobileNav
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         openSyncModal={() => setIsSyncModalOpen(true)}
       />
 
-      {/* Google Drive Sync Center */}
       <DriveSyncModal
         isOpen={isSyncModalOpen}
         onClose={() => setIsSyncModalOpen(false)}
       />
 
-      {/* Interactive Notification Center */}
       <NotificationCenterModal
         isOpen={isNotificationCenterOpen}
         onClose={() => setIsNotificationCenterOpen(false)}

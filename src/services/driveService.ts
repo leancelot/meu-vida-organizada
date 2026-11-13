@@ -1,4 +1,5 @@
 import { AppDataPayload } from '../types';
+import { WorkspaceAuthError } from './googleAuthError';
 
 const BACKUP_FILE_NAME = 'VidaOrganizada_Data.json';
 
@@ -22,9 +23,13 @@ export async function findDriveBackupFile(accessToken: string): Promise<DriveFil
     },
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Drive expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok) {
     const errorText = await res.text();
-    console.error('Erro ao buscar arquivo no Drive:', errorText);
+    console.warn('Falha ao consultar arquivo no Drive:', res.status, errorText);
     throw new Error(`Falha ao acessar Google Drive (${res.status})`);
   }
 
@@ -47,6 +52,10 @@ export async function readDriveFile(accessToken: string, fileId: string): Promis
     },
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Drive expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok) {
     throw new Error(`Erro ao baixar arquivo do Drive (${res.status})`);
   }
@@ -65,7 +74,6 @@ export async function saveToDrive(
 ): Promise<DriveFileInfo> {
   const fileContent = JSON.stringify(payload, null, 2);
 
-  // If we already know the file ID, let's verify if it exists and update it
   let targetFileId = existingFileId;
   if (!targetFileId) {
     const existing = await findDriveBackupFile(accessToken);
@@ -75,7 +83,6 @@ export async function saveToDrive(
   }
 
   if (targetFileId) {
-    // Update existing file content
     const updateUrl = `https://www.googleapis.com/upload/drive/v3/files/${targetFileId}?uploadType=media`;
     const res = await fetch(updateUrl, {
       method: 'PATCH',
@@ -86,62 +93,73 @@ export async function saveToDrive(
       body: fileContent,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('Erro ao atualizar arquivo no Drive:', err);
-      throw new Error(`Falha ao salvar no Google Drive: ${res.statusText}`);
+    if (res.status === 401) {
+      throw new WorkspaceAuthError('Sessão do Google Drive expirada. Conecte sua conta novamente.');
     }
 
-    const updated = await res.json();
-    return {
-      id: updated.id,
-      name: updated.name || BACKUP_FILE_NAME,
-      modifiedTime: new Date().toISOString(),
-    };
-  } else {
-    // Create new file with multipart upload
-    const metadata = {
-      name: BACKUP_FILE_NAME,
-      mimeType: 'application/json',
-      description: 'Backup de sincronização do VidaOrganizada (Tarefas, Finanças e Agenda)',
-    };
-
-    const boundary = '-------VidaOrganizadaBoundary7MA4YWxkTrZu0gW';
-    const delimiter = `\r\n--${boundary}\r\n`;
-    const closeDelimiter = `\r\n--${boundary}--`;
-
-    const multipartRequestBody =
-      delimiter +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) +
-      delimiter +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      fileContent +
-      closeDelimiter;
-
-    const createUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-    const res = await fetch(createUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartRequestBody,
-    });
-
-    if (!res.ok) {
+    if (res.status === 404) {
+      // Arquivo foi apagado manualmente no Drive; cria um novo abaixo
+      targetFileId = null;
+    } else if (!res.ok) {
       const err = await res.text();
-      console.error('Erro ao criar arquivo no Drive:', err);
-      throw new Error(`Falha ao criar backup no Google Drive: ${res.statusText}`);
+      console.warn('Falha ao atualizar arquivo no Drive:', res.status, err);
+      throw new Error(`Falha ao salvar no Google Drive (${res.status})`);
+    } else {
+      const updated = await res.json();
+      return {
+        id: updated.id,
+        name: updated.name || BACKUP_FILE_NAME,
+        modifiedTime: new Date().toISOString(),
+      };
     }
-
-    const created = await res.json();
-    return {
-      id: created.id,
-      name: created.name || BACKUP_FILE_NAME,
-      modifiedTime: new Date().toISOString(),
-    };
   }
+
+  // Create new file with multipart upload
+  const metadata = {
+    name: BACKUP_FILE_NAME,
+    mimeType: 'application/json',
+    description: 'Backup de sincronização do VidaOrganizada (Agenda, Tarefas e Finanças)',
+  };
+
+  const boundary = '-------VidaOrganizadaBoundary7MA4YWxkTrZu0gW';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelimiter = `\r\n--${boundary}--`;
+
+  const multipartRequestBody =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) +
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    fileContent +
+    closeDelimiter;
+
+  const createUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  const res = await fetch(createUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`,
+    },
+    body: multipartRequestBody,
+  });
+
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Drive expirada. Conecte sua conta novamente.');
+  }
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.warn('Falha ao criar arquivo no Drive:', res.status, err);
+    throw new Error(`Falha ao criar backup no Google Drive (${res.status})`);
+  }
+
+  const created = await res.json();
+  return {
+    id: created.id,
+    name: created.name || BACKUP_FILE_NAME,
+    modifiedTime: new Date().toISOString(),
+  };
 }
 
 /**
@@ -155,7 +173,11 @@ export async function deleteDriveFile(accessToken: string, fileId: string): Prom
     },
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Drive expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok && res.status !== 404) {
-    throw new Error(`Erro ao excluir arquivo no Drive: ${res.statusText}`);
+    throw new Error(`Erro ao excluir arquivo no Drive (${res.status})`);
   }
 }

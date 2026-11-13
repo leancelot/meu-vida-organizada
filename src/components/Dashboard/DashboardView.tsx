@@ -25,13 +25,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
     addTask,
     calendarEvents,
     user,
+    userName,
     driveSyncInfo,
   } = useApp();
 
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'pending' | 'completed'>('all');
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate()
+    ).padStart(2, '0')}`;
+  }, []);
 
   // Today's tasks
   const todayTasks = useMemo(
@@ -59,7 +65,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
   }, []);
 
   const progressPercent = useMemo(() => {
-    if (todayTasks.length === 0) return 100;
+    if (todayTasks.length === 0) return 0;
     return Math.round((completedTasks.length / todayTasks.length) * 100);
   }, [todayTasks.length, completedTasks.length]);
 
@@ -85,32 +91,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
     return todayTasks;
   }, [filterMode, pendingTasks, completedTasks, todayTasks]);
 
-  const firstName = user?.displayName ? user.displayName.split(' ')[0] : 'Você';
+  const displayFirstName = useMemo(() => {
+    if (userName.trim()) return userName.trim().split(' ')[0];
+    if (user?.displayName) return user.displayName.split(' ')[0];
+    return '';
+  }, [userName, user?.displayName]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300 pb-12">
       {/* 1. Header Minimalista */}
       <header className="pt-2 sm:pt-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-zinc-200/70 dark:border-zinc-800/80 pb-5">
         <div className="space-y-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+          <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
             {formattedTodayDate}
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Olá, {firstName}
+            {displayFirstName ? `Olá, ${displayFirstName}` : 'Foco do Dia'}
           </h1>
         </div>
 
-        {/* Status discreto de sincronização */}
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700/60">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                driveSyncInfo.status === 'synced'
-                  ? 'bg-emerald-500 ring-2 ring-emerald-500/20'
-                  : 'bg-zinc-400'
-              }`}
-            />
-            <span>{user ? 'Nuvem Conectada' : 'Modo Local'}</span>
+        {/* Status discreto de sincronização em texto limpo */}
+        <div className="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          <span>
+            {user
+              ? driveSyncInfo.status === 'syncing'
+                ? 'Sincronizando...'
+                : 'Nuvem conectada'
+              : 'Modo local'}
           </span>
         </div>
       </header>
@@ -121,7 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">
             Progresso de Hoje
           </span>
-          <span className="font-mono text-zinc-500 dark:text-zinc-400">
+          <span className="font-mono tabular-nums text-zinc-500 dark:text-zinc-400">
             {completedTasks.length} de {todayTasks.length} concluídas ({progressPercent}%)
           </span>
         </div>
@@ -325,25 +332,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
         )}
       </section>
 
-      {/* 5. Acessos Rápidos Discretos no Rodapé (sem cards poluídos) */}
+      {/* 5. Acessos Rápidos Discretos no Rodapé */}
       <footer className="pt-4 border-t border-zinc-100 dark:border-zinc-850 flex flex-wrap items-center justify-center gap-3">
         <button
-          onClick={() => setCurrentTab('tarefas')}
+          onClick={() => setCurrentTab('agenda')}
           className="text-xs font-medium text-zinc-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors cursor-pointer py-1.5 px-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
-          Ver todas as tarefas →
+          Agenda e tarefas →
         </button>
         <button
           onClick={() => setCurrentTab('financas')}
           className="text-xs font-medium text-zinc-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400 transition-colors cursor-pointer py-1.5 px-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           Controle financeiro →
-        </button>
-        <button
-          onClick={() => setCurrentTab('agenda')}
-          className="text-xs font-medium text-zinc-500 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400 transition-colors cursor-pointer py-1.5 px-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          Agenda completa →
         </button>
       </footer>
     </div>

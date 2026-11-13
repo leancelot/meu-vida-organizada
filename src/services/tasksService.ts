@@ -1,3 +1,5 @@
+import { WorkspaceAuthError } from './googleAuthError';
+
 export interface GoogleTask {
   id: string;
   title: string;
@@ -21,6 +23,10 @@ export async function getGoogleTaskLists(accessToken: string): Promise<GoogleTas
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Tasks expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok) {
     throw new Error(`Falha ao obter listas de tarefas (${res.status})`);
   }
@@ -37,6 +43,10 @@ export async function getGoogleTasks(accessToken: string, listId = '@default'): 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Tasks expirada. Conecte sua conta novamente.');
+  }
 
   if (!res.ok) {
     throw new Error(`Falha ao obter tarefas do Google (${res.status})`);
@@ -64,6 +74,10 @@ export async function createGoogleTask(
     body: JSON.stringify(task),
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Tasks expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok) {
     throw new Error(`Falha ao criar tarefa no Google Tasks (${res.status})`);
   }
@@ -89,6 +103,10 @@ export async function updateGoogleTaskStatus(
     },
     body: JSON.stringify({ status }),
   });
+
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão do Google Tasks expirada. Conecte sua conta novamente.');
+  }
 
   if (!res.ok) {
     throw new Error(`Falha ao atualizar tarefa no Google Tasks (${res.status})`);

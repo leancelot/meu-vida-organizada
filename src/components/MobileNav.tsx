@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   CalendarDays,
-  CheckSquare,
   CircleDollarSign,
   LayoutGrid,
   Sliders,
@@ -32,16 +31,16 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   return (
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800 shadow-xl"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 6px)' }}
     >
-      <div className="flex items-center justify-around h-15 px-2">
+      <div className="grid grid-cols-4 items-center h-14 px-2">
         {/* 1. Início */}
         <button
           onClick={() => handleTabClick('dashboard')}
-          className="flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer"
+          className="flex flex-col items-center justify-center py-1 min-h-[44px] select-none transition-transform active:scale-95 cursor-pointer"
         >
           <div
-            className={`flex items-center justify-center px-4 py-1 rounded-full transition-colors ${
+            className={`flex items-center justify-center px-3.5 py-1 rounded-full transition-colors ${
               currentTab === 'dashboard'
                 ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400'
                 : 'text-zinc-500 dark:text-zinc-400'
@@ -60,43 +59,43 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           </span>
         </button>
 
-        {/* 2. Tarefas */}
+        {/* 2. Agenda & Tarefas */}
         <button
-          onClick={() => handleTabClick('tarefas')}
-          className="flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer"
+          onClick={() => handleTabClick('agenda')}
+          className="flex flex-col items-center justify-center py-1 min-h-[44px] select-none transition-transform active:scale-95 cursor-pointer"
         >
           <div
-            className={`relative flex items-center justify-center px-4 py-1 rounded-full transition-colors ${
-              currentTab === 'tarefas'
+            className={`relative flex items-center justify-center px-3.5 py-1 rounded-full transition-colors ${
+              currentTab === 'agenda'
                 ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400'
                 : 'text-zinc-500 dark:text-zinc-400'
             }`}
           >
-            <CheckSquare className="w-5 h-5" />
+            <CalendarDays className="w-5 h-5" />
             {pendingToday > 0 && (
-              <span className="absolute -top-1 right-2 bg-indigo-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+              <span className="absolute -top-1 right-1.5 bg-indigo-600 text-white text-[9px] font-bold font-mono tabular-nums min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
                 {pendingToday}
               </span>
             )}
           </div>
           <span
             className={`text-[10px] mt-0.5 tracking-tight ${
-              currentTab === 'tarefas'
+              currentTab === 'agenda'
                 ? 'font-bold text-indigo-600 dark:text-indigo-400'
                 : 'font-medium text-zinc-500 dark:text-zinc-400'
             }`}
           >
-            Tarefas
+            Agenda
           </span>
         </button>
 
         {/* 3. Finanças */}
         <button
           onClick={() => handleTabClick('financas')}
-          className="flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer"
+          className="flex flex-col items-center justify-center py-1 min-h-[44px] select-none transition-transform active:scale-95 cursor-pointer"
         >
           <div
-            className={`flex items-center justify-center px-4 py-1 rounded-full transition-colors ${
+            className={`flex items-center justify-center px-3.5 py-1 rounded-full transition-colors ${
               currentTab === 'financas'
                 ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400'
                 : 'text-zinc-500 dark:text-zinc-400'
@@ -115,38 +114,13 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           </span>
         </button>
 
-        {/* 4. Agenda */}
-        <button
-          onClick={() => handleTabClick('agenda')}
-          className="flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer"
-        >
-          <div
-            className={`flex items-center justify-center px-4 py-1 rounded-full transition-colors ${
-              currentTab === 'agenda'
-                ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400'
-                : 'text-zinc-500 dark:text-zinc-400'
-            }`}
-          >
-            <CalendarDays className="w-5 h-5" />
-          </div>
-          <span
-            className={`text-[10px] mt-0.5 tracking-tight ${
-              currentTab === 'agenda'
-                ? 'font-bold text-indigo-600 dark:text-indigo-400'
-                : 'font-medium text-zinc-500 dark:text-zinc-400'
-            }`}
-          >
-            Agenda
-          </span>
-        </button>
-
-        {/* 5. Ajustes */}
+        {/* 4. Ajustes */}
         <button
           onClick={() => handleTabClick('configuracoes')}
-          className="flex flex-col items-center justify-center flex-1 py-1 min-h-[48px] select-none transition-transform active:scale-95 cursor-pointer"
+          className="flex flex-col items-center justify-center py-1 min-h-[44px] select-none transition-transform active:scale-95 cursor-pointer"
         >
           <div
-            className={`relative flex items-center justify-center px-4 py-1 rounded-full transition-colors ${
+            className={`relative flex items-center justify-center px-3.5 py-1 rounded-full transition-colors ${
               currentTab === 'configuracoes'
                 ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400'
                 : 'text-zinc-500 dark:text-zinc-400'
@@ -154,7 +128,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           >
             <Sliders className="w-5 h-5" />
             {driveSyncInfo.status === 'cloud_newer' && (
-              <span className="absolute top-0.5 right-3 w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <span className="absolute top-0.5 right-2.5 w-2 h-2 rounded-full bg-amber-500" />
             )}
           </div>
           <span

@@ -20,7 +20,9 @@ import {
   completeNativeGoogleAuth,
   logout as fbLogout,
   getAccessToken,
+  setSessionToken,
 } from '../services/firebase';
+import { isWorkspaceAuthError } from '../services/googleAuthError';
 import {
   findDriveBackupFile,
   readDriveFile,
@@ -49,188 +51,112 @@ const STORAGE_KEY_DATA = 'vidaorganizada_local_data_v2';
 const STORAGE_KEY_SYNC = 'vidaorganizada_sync_info_v2';
 const STORAGE_KEY_NOTIFS = 'vidaorganizada_notifications_v2';
 const STORAGE_KEY_THEME = 'vidaorganizada_theme_v1';
-
-// Default initial tasks
-const INITIAL_TASKS: TaskItem[] = [
-  {
-    id: 't-1',
-    title: 'Revisar orçamento mensal e contas a pagar',
-    description: 'Verificar faturas do cartão e investimentos do mês',
-    dueDate: new Date().toISOString().split('T')[0],
-    dueTime: '09:00',
-    priority: 'high',
-    category: 'financas',
-    completed: true,
-    completedAt: new Date().toISOString(),
-    subtasks: [
-      { id: 'st-1', title: 'Checar extrato bancário', completed: true },
-      { id: 'st-2', title: 'Atualizar planilha de gastos', completed: true },
-    ],
-  },
-  {
-    id: 't-2',
-    title: 'Planejar metas da semana e prioridades',
-    description: 'Definir os 3 objetivos principais de trabalho e finanças',
-    dueDate: new Date().toISOString().split('T')[0],
-    dueTime: '11:00',
-    priority: 'medium',
-    category: 'pessoal',
-    completed: false,
-    subtasks: [
-      { id: 'st-3', title: 'Bloquear horários na agenda', completed: false },
-      { id: 'st-4', title: 'Organizar mesa de trabalho', completed: false },
-    ],
-  },
-  {
-    id: 't-3',
-    title: 'Prática de exercícios físicos (45 min)',
-    description: 'Treino de corrida ou musculação',
-    dueDate: new Date().toISOString().split('T')[0],
-    dueTime: '18:30',
-    priority: 'high',
-    category: 'saude',
-    completed: false,
-    subtasks: [
-      { id: 'st-5', title: 'Alongamento pós-treino', completed: false },
-      { id: 'st-6', title: 'Hidratação (500ml)', completed: false },
-    ],
-  },
-  {
-    id: 't-4',
-    title: 'Leitura de 20 páginas de livro',
-    description: 'Foco e anotações dos principais aprendizados',
-    dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-    dueTime: '21:00',
-    priority: 'low',
-    category: 'estudos',
-    completed: false,
-    subtasks: [],
-  },
-];
-
-// Default initial transactions
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'tx-1',
-    type: 'receita',
-    title: 'Salário Mensal',
-    amount: 5800.0,
-    category: 'salario',
-    date: new Date(new Date().getFullYear(), new Date().getMonth(), 5).toISOString().split('T')[0],
-    paymentMethod: 'pix',
-    notes: 'Depósito em conta corrente',
-    recurring: true,
-  },
-  {
-    id: 'tx-2',
-    type: 'receita',
-    title: 'Projeto Freelance',
-    amount: 1450.0,
-    category: 'freelance',
-    date: new Date(new Date().getFullYear(), new Date().getMonth(), 8).toISOString().split('T')[0],
-    paymentMethod: 'pix',
-  },
-  {
-    id: 'tx-3',
-    type: 'despesa',
-    title: 'Aluguel & Condomínio',
-    amount: 1850.0,
-    category: 'moradia',
-    date: new Date(new Date().getFullYear(), new Date().getMonth(), 10).toISOString().split('T')[0],
-    paymentMethod: 'transferencia',
-    recurring: true,
-  },
-  {
-    id: 'tx-4',
-    type: 'despesa',
-    title: 'Supermercado do Mês',
-    amount: 780.45,
-    category: 'alimentacao',
-    date: new Date(new Date().getFullYear(), new Date().getMonth(), 7).toISOString().split('T')[0],
-    paymentMethod: 'cartao_credito',
-  },
-  {
-    id: 'tx-5',
-    type: 'despesa',
-    title: 'Combustível / Transporte',
-    amount: 220.0,
-    category: 'transporte',
-    date: new Date(new Date().getFullYear(), new Date().getMonth(), 9).toISOString().split('T')[0],
-    paymentMethod: 'cartao_debito',
-  },
-  {
-    id: 'tx-6',
-    type: 'despesa',
-    title: 'Academia & Saúde',
-    amount: 190.0,
-    category: 'saude',
-    date: new Date(new Date().getFullYear(), new Date().getMonth(), 2).toISOString().split('T')[0],
-    paymentMethod: 'cartao_credito',
-    recurring: true,
-  },
-];
-
-// Default initial financial goals
-const INITIAL_GOALS: FinancialGoal[] = [
-  {
-    id: 'g-1',
-    title: 'Reserva de Emergência (6 meses)',
-    targetAmount: 25000,
-    currentAmount: 18500,
-    targetDate: '2027-06-30',
-    category: 'investimentos',
-    color: '#10b981',
-  },
-  {
-    id: 'g-2',
-    title: 'Viagem de Férias',
-    targetAmount: 6000,
-    currentAmount: 3400,
-    targetDate: '2027-01-15',
-    category: 'lazer',
-    color: '#6366f1',
-  },
-  {
-    id: 'g-3',
-    title: 'Troca de Computador / Setup',
-    targetAmount: 7500,
-    currentAmount: 4200,
-    targetDate: '2027-04-10',
-    category: 'estudos',
-    color: '#f59e0b',
-  },
-];
-
-// Default budget limits
-const INITIAL_BUDGETS: BudgetLimit[] = [
-  { category: 'moradia', monthlyLimit: 2000 },
-  { category: 'alimentacao', monthlyLimit: 1200 },
-  { category: 'transporte', monthlyLimit: 450 },
-  { category: 'lazer', monthlyLimit: 600 },
-  { category: 'saude', monthlyLimit: 400 },
-];
-
-// Default initial draft notes
-const INITIAL_DRAFTS: DraftNote[] = [
-  {
-    id: 'draft-1',
-    title: 'Ideias de Projetos & Objetivos',
-    content: '• Organizar rotina matinal com 15 minutos de planejamento\n• Revisar investimentos e metas todo início de mês\n• Testar novo formato de trabalho focado',
-    color: '#fef08a', // amarelo suave
-    updatedAt: new Date().toISOString(),
-    isPinned: true,
-  },
-  {
-    id: 'draft-2',
-    title: 'Rascunho Rápido / Notas Diárias',
-    content: 'Ligar para confirmar agendamento\nComprar material de escritório\nVerificar cotação do seguro',
-    color: '#bbf7d0', // verde menta
-    updatedAt: new Date().toISOString(),
-    isPinned: false,
-  },
-];
+const CURRENT_DATA_VERSION = 3;
 
 const DEFAULT_WIDGETS = ['overview', 'schedule', 'tasks', 'finance', 'scratchpad', 'reminders'];
+
+// Assinaturas exatas dos antigos registros de exemplo para remoção segura apenas se não editados
+const LEGACY_SEED_TASK_TITLES: Record<string, string> = {
+  't-1': 'Revisar orçamento mensal e contas a pagar',
+  't-2': 'Planejar metas da semana e prioridades',
+  't-3': 'Prática de exercícios físicos (45 min)',
+  't-4': 'Leitura de 20 páginas de livro',
+};
+
+const LEGACY_SEED_TRANSACTIONS: Record<string, { title: string; amount: number }> = {
+  'tx-1': { title: 'Salário Mensal', amount: 5800 },
+  'tx-2': { title: 'Projeto Freelance', amount: 1450 },
+  'tx-3': { title: 'Aluguel & Condomínio', amount: 1850 },
+  'tx-4': { title: 'Supermercado do Mês', amount: 780.45 },
+  'tx-5': { title: 'Combustível / Transporte', amount: 220 },
+  'tx-6': { title: 'Academia & Saúde', amount: 190 },
+};
+
+const LEGACY_SEED_GOALS: Record<string, { title: string; targetAmount: number; currentAmount: number }> = {
+  'g-1': { title: 'Reserva de Emergência (6 meses)', targetAmount: 25000, currentAmount: 18500 },
+  'g-2': { title: 'Viagem de Férias', targetAmount: 6000, currentAmount: 3400 },
+  'g-3': { title: 'Troca de Computador / Setup', targetAmount: 7500, currentAmount: 4200 },
+};
+
+const LEGACY_SEED_DRAFTS: Record<string, string> = {
+  'draft-1': 'Ideias de Projetos & Objetivos',
+  'draft-2': 'Rascunho Rápido / Notas Diárias',
+};
+
+const LEGACY_SEED_BUDGETS: Record<string, number> = {
+  moradia: 2000,
+  alimentacao: 1200,
+  transporte: 450,
+  lazer: 600,
+  saude: 400,
+};
+
+function sanitizeLegacyPayload(parsed: any): Partial<AppDataPayload> {
+  if (!parsed || typeof parsed !== 'object') return {};
+
+  const isLegacyVersion = typeof parsed.version !== 'number' || parsed.version < CURRENT_DATA_VERSION;
+
+  const rawTasks: TaskItem[] = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+  const rawTxs: Transaction[] = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+  const rawGoals: FinancialGoal[] = Array.isArray(parsed.financialGoals) ? parsed.financialGoals : [];
+  const rawBudgets: BudgetLimit[] = Array.isArray(parsed.budgetLimits) ? parsed.budgetLimits : [];
+  const rawDrafts: DraftNote[] = Array.isArray(parsed.draftNotes) ? parsed.draftNotes : [];
+
+  if (!isLegacyVersion) {
+    return {
+      userName: typeof parsed.userName === 'string' ? parsed.userName : '',
+      onboardingCompleted: Boolean(parsed.onboardingCompleted),
+      tasks: rawTasks,
+      transactions: rawTxs,
+      financialGoals: rawGoals,
+      budgetLimits: rawBudgets,
+      draftNotes: rawDrafts,
+      dashboardWidgets: Array.isArray(parsed.dashboardWidgets) ? parsed.dashboardWidgets : DEFAULT_WIDGETS,
+    };
+  }
+
+  const tasks = rawTasks.filter((t) => LEGACY_SEED_TASK_TITLES[t.id] !== t.title);
+  const transactions = rawTxs.filter((tx) => {
+    const seed = LEGACY_SEED_TRANSACTIONS[tx.id];
+    return !(seed && seed.title === tx.title && seed.amount === tx.amount);
+  });
+  const financialGoals = rawGoals.filter((g) => {
+    const seed = LEGACY_SEED_GOALS[g.id];
+    return !(
+      seed &&
+      seed.title === g.title &&
+      seed.targetAmount === g.targetAmount &&
+      seed.currentAmount === g.currentAmount
+    );
+  });
+  const budgetLimits = rawBudgets.filter(
+    (b) => LEGACY_SEED_BUDGETS[b.category] !== b.monthlyLimit
+  );
+  const draftNotes = rawDrafts.filter((d) => LEGACY_SEED_DRAFTS[d.id] !== d.title);
+
+  return {
+    userName: typeof parsed.userName === 'string' ? parsed.userName : '',
+    onboardingCompleted: Boolean(parsed.onboardingCompleted),
+    tasks,
+    transactions,
+    financialGoals,
+    budgetLimits,
+    draftNotes,
+    dashboardWidgets: Array.isArray(parsed.dashboardWidgets) ? parsed.dashboardWidgets : DEFAULT_WIDGETS,
+  };
+}
+
+function loadInitialLocalPayload(): Partial<AppDataPayload> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DATA);
+    if (saved) {
+      return sanitizeLegacyPayload(JSON.parse(saved));
+    }
+  } catch (e) {
+    console.warn('Erro ao ler dados locais:', e);
+  }
+  return {};
+}
 
 interface UndoToastInfo {
   id: string;
@@ -242,6 +168,13 @@ interface AppContextType {
   // Theme state
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  setThemeMode: (mode: 'light' | 'dark') => void;
+
+  // Profile & Onboarding state
+  userName: string;
+  setUserName: (name: string) => void;
+  onboardingCompleted: boolean;
+  completeOnboarding: (name: string) => void;
 
   // Auth state
   user: User | null;
@@ -362,89 +295,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  const setThemeMode = (mode: 'light' | 'dark') => {
+    setTheme(mode);
+  };
+
+  // Initial sanitized payload (zero fictitious examples)
+  const initialPayloadRef = useRef<Partial<AppDataPayload> | null>(null);
+  if (initialPayloadRef.current === null) {
+    initialPayloadRef.current = loadInitialLocalPayload();
+  }
+  const initialPayload = initialPayloadRef.current;
+
+  // Profile & Onboarding
+  const [userName, setUserNameState] = useState<string>(() => initialPayload.userName || '');
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(
+    () => Boolean(initialPayload.onboardingCompleted)
+  );
+
   // Auth
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // App core state
-  const [tasks, setTasks] = useState<TaskItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.tasks) return parsed.tasks;
-      }
-    } catch (e) {
-      console.warn('Erro ao ler tasks locais:', e);
-    }
-    return INITIAL_TASKS;
-  });
-
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.transactions) return parsed.transactions;
-      }
-    } catch (e) {
-      console.warn('Erro ao ler transações locais:', e);
-    }
-    return INITIAL_TRANSACTIONS;
-  });
-
-  const [financialGoals, setFinancialGoals] = useState<FinancialGoal[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.financialGoals) return parsed.financialGoals;
-      }
-    } catch (e) {
-      console.warn('Erro ao ler metas locais:', e);
-    }
-    return INITIAL_GOALS;
-  });
-
-  const [budgetLimits, setBudgetLimits] = useState<BudgetLimit[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.budgetLimits) return parsed.budgetLimits;
-      }
-    } catch (e) {
-      console.warn('Erro ao ler limites locais:', e);
-    }
-    return INITIAL_BUDGETS;
-  });
-
-  const [draftNotes, setDraftNotes] = useState<DraftNote[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.draftNotes) return parsed.draftNotes;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return INITIAL_DRAFTS;
-  });
-
-  const [dashboardWidgets, setDashboardWidgets] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_DATA);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.dashboardWidgets) return parsed.dashboardWidgets;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return DEFAULT_WIDGETS;
-  });
+  // App core state (always starts empty if no user data)
+  const [tasks, setTasks] = useState<TaskItem[]>(() => initialPayload.tasks || []);
+  const [transactions, setTransactions] = useState<Transaction[]>(
+    () => initialPayload.transactions || []
+  );
+  const [financialGoals, setFinancialGoals] = useState<FinancialGoal[]>(
+    () => initialPayload.financialGoals || []
+  );
+  const [budgetLimits, setBudgetLimits] = useState<BudgetLimit[]>(
+    () => initialPayload.budgetLimits || []
+  );
+  const [draftNotes, setDraftNotes] = useState<DraftNote[]>(
+    () => initialPayload.draftNotes || []
+  );
+  const [dashboardWidgets, setDashboardWidgets] = useState<string[]>(
+    () => initialPayload.dashboardWidgets || DEFAULT_WIDGETS
+  );
 
   // Calendar events
   const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>([]);
@@ -537,8 +426,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Save to local storage on changes
   useEffect(() => {
     const payload: AppDataPayload = {
-      version: 2,
+      version: CURRENT_DATA_VERSION,
       lastUpdated: new Date().toISOString(),
+      userName,
+      onboardingCompleted,
       tasks,
       transactions,
       financialGoals,
@@ -551,7 +442,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Falha ao salvar dados no LocalStorage:', e);
     }
-  }, [tasks, transactions, financialGoals, budgetLimits, draftNotes, dashboardWidgets]);
+  }, [
+    userName,
+    onboardingCompleted,
+    tasks,
+    transactions,
+    financialGoals,
+    budgetLimits,
+    draftNotes,
+    dashboardWidgets,
+  ]);
 
   // Persist notifications
   useEffect(() => {
@@ -619,6 +519,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             if (token) {
               setIsAuthenticating(true);
+              sessionExpiredNotifiedRef.current = false;
               const loggedUser = await completeNativeGoogleAuth(token, idToken);
               setAccessToken(token);
               if (loggedUser) {
@@ -677,6 +578,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
 
+  const sessionExpiredNotifiedRef = useRef(false);
+
+  const handleWorkspaceAuthError = useCallback((err: unknown): boolean => {
+    if (!isWorkspaceAuthError(err)) return false;
+
+    setSessionToken(null);
+    setAccessToken(null);
+    setUser(null);
+    setDriveSyncInfo((prev) => ({
+      ...prev,
+      status: 'idle',
+      errorMessage: undefined,
+    }));
+
+    if (!sessionExpiredNotifiedRef.current) {
+      sessionExpiredNotifiedRef.current = true;
+      const expiredNotif: AppNotification = {
+        id: 'notif-auth-expired-' + Date.now(),
+        title: 'Sessão Google expirada',
+        body: 'Sua sessão de acesso ao Google expirou. Conecte sua conta novamente para sincronizar Drive e Agenda.',
+        timestamp: new Date().toISOString(),
+        type: 'reminder',
+        read: false,
+      };
+      setNotificationsList((prev) => [expiredNotif, ...prev.slice(0, 29)]);
+    }
+
+    return true;
+  }, []);
+
   // Fetch Calendar events when accessToken is available
   const refreshCalendar = useCallback(async () => {
     const token = accessToken || (await getAccessToken());
@@ -687,11 +618,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const events = await listCalendarEvents(token);
       setCalendarEvents(events);
     } catch (err: any) {
-      console.error('Erro ao carregar calendário:', err);
+      if (!handleWorkspaceAuthError(err)) {
+        console.warn('Falha ao carregar calendário:', err);
+      }
     } finally {
       setIsLoadingCalendar(false);
     }
-  }, [accessToken]);
+  }, [accessToken, handleWorkspaceAuthError]);
 
   useEffect(() => {
     if (accessToken) {
@@ -721,9 +654,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
     } catch (err) {
-      console.warn('Erro ao verificar status do Google Drive:', err);
+      if (!handleWorkspaceAuthError(err)) {
+        console.warn('Erro ao verificar status do Google Drive:', err);
+      }
     }
-  }, [accessToken]);
+  }, [accessToken, handleWorkspaceAuthError]);
 
   useEffect(() => {
     if (accessToken) {
@@ -753,8 +688,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         setDriveSyncInfo((prev) => ({ ...prev, status: 'syncing' }));
         const payload: AppDataPayload = {
-          version: 2,
+          version: CURRENT_DATA_VERSION,
           lastUpdated: new Date().toISOString(),
+          userName,
+          onboardingCompleted,
           tasks,
           transactions,
           financialGoals,
@@ -771,15 +708,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           status: 'synced',
         });
       } catch (err: any) {
-        console.error('Erro na sincronização em segundo plano:', err);
-        setDriveSyncInfo((prev) => ({
-          ...prev,
-          status: 'error',
-          errorMessage: err.message || 'Falha ao sincronizar',
-        }));
+        if (!handleWorkspaceAuthError(err)) {
+          console.warn('Falha na sincronização em segundo plano:', err);
+          setDriveSyncInfo((prev) => ({
+            ...prev,
+            status: 'error',
+            errorMessage: err.message || 'Falha ao sincronizar',
+          }));
+        }
       }
     }, 4000);
-  }, [accessToken, tasks, transactions, financialGoals, budgetLimits, draftNotes, dashboardWidgets, driveSyncInfo.fileId]);
+  }, [
+    accessToken,
+    userName,
+    onboardingCompleted,
+    tasks,
+    transactions,
+    financialGoals,
+    budgetLimits,
+    draftNotes,
+    dashboardWidgets,
+    driveSyncInfo.fileId,
+    handleWorkspaceAuthError,
+  ]);
+
+  const setUserName = (name: string) => {
+    const cleaned = name.trim();
+    setUserNameState(cleaned);
+    triggerAutoSync();
+  };
+
+  const completeOnboarding = (name: string) => {
+    const cleaned = name.trim();
+    if (cleaned) {
+      setUserNameState(cleaned);
+    }
+    setOnboardingCompleted(true);
+    hapticSuccess();
+    triggerAutoSync();
+  };
 
   // Web Notifications Engine: Silent checks (sem sons)
   useEffect(() => {
@@ -913,8 +880,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDriveSyncInfo((prev) => ({ ...prev, status: 'syncing', errorMessage: undefined }));
     try {
       const payload: AppDataPayload = {
-        version: 2,
+        version: CURRENT_DATA_VERSION,
         lastUpdated: new Date().toISOString(),
+        userName,
+        onboardingCompleted,
         tasks,
         transactions,
         financialGoals,
@@ -932,7 +901,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       confetti({ particleCount: 30, spread: 60, origin: { y: 0.8 } });
     } catch (err: any) {
-      console.error('Erro ao salvar no Drive:', err);
+      if (handleWorkspaceAuthError(err)) {
+        throw new Error('Sessão Google expirada. Conecte sua conta novamente.');
+      }
+      console.warn('Falha ao salvar no Drive:', err);
       setDriveSyncInfo((prev) => ({
         ...prev,
         status: 'error',
@@ -963,12 +935,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const remoteData = await readDriveFile(token, fileId);
       if (remoteData) {
-        if (remoteData.tasks) setTasks(remoteData.tasks);
-        if (remoteData.transactions) setTransactions(remoteData.transactions);
-        if (remoteData.financialGoals) setFinancialGoals(remoteData.financialGoals);
-        if (remoteData.budgetLimits) setBudgetLimits(remoteData.budgetLimits);
-        if (remoteData.draftNotes) setDraftNotes(remoteData.draftNotes);
-        if (remoteData.dashboardWidgets) setDashboardWidgets(remoteData.dashboardWidgets);
+        const sanitized = sanitizeLegacyPayload(remoteData);
+        if (sanitized.tasks) setTasks(sanitized.tasks);
+        if (sanitized.transactions) setTransactions(sanitized.transactions);
+        if (sanitized.financialGoals) setFinancialGoals(sanitized.financialGoals);
+        if (sanitized.budgetLimits) setBudgetLimits(sanitized.budgetLimits);
+        if (sanitized.draftNotes) setDraftNotes(sanitized.draftNotes);
+        if (sanitized.dashboardWidgets) setDashboardWidgets(sanitized.dashboardWidgets);
+        if (sanitized.userName) setUserNameState(sanitized.userName);
+        if (sanitized.onboardingCompleted || sanitized.userName) {
+          setOnboardingCompleted(true);
+        }
 
         setDriveSyncInfo({
           fileId,
@@ -979,7 +956,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         confetti({ particleCount: 50, spread: 70, origin: { y: 0.7 } });
       }
     } catch (err: any) {
-      console.error('Erro ao restaurar do Drive:', err);
+      if (handleWorkspaceAuthError(err)) {
+        throw new Error('Sessão Google expirada. Conecte sua conta novamente.');
+      }
+      console.warn('Falha ao restaurar do Drive:', err);
       setDriveSyncInfo((prev) => ({
         ...prev,
         status: 'error',
@@ -1002,6 +982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (result.user && result.accessToken) {
+        sessionExpiredNotifiedRef.current = false;
         setUser(result.user);
         setAccessToken(result.accessToken);
         try {
@@ -1171,6 +1152,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateBudgetLimit = (category: Transaction['category'], limit: number) => {
     setBudgetLimits((prev) => {
+      if (limit <= 0 || isNaN(limit)) {
+        return prev.filter((b) => b.category !== category);
+      }
       const exists = prev.find((b) => b.category === category);
       if (exists) {
         return prev.map((b) => (b.category === category ? { ...b, monthlyLimit: limit } : b));
@@ -1250,7 +1234,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       confetti({ particleCount: 25, spread: 60 });
       return created;
     } catch (err: any) {
-      console.error('Falha ao adicionar evento na Google Agenda:', err);
+      handleWorkspaceAuthError(err);
+      console.warn('Falha ao adicionar evento na Google Agenda:', err);
       throw err;
     }
   };
@@ -1269,8 +1254,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       confirmText: 'Excluir Evento',
       isDestructive: true,
       onConfirm: async () => {
-        await apiDeleteCalendarEvent(token, eventId);
-        setCalendarEvents((prev) => prev.filter((e) => e.id !== eventId));
+        try {
+          await apiDeleteCalendarEvent(token, eventId);
+          setCalendarEvents((prev) => prev.filter((e) => e.id !== eventId));
+        } catch (err) {
+          handleWorkspaceAuthError(err);
+          throw err;
+        }
       },
     });
   };
@@ -1299,7 +1289,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return true;
       }
     } catch (e) {
-      console.error('Falha ao agendar tarefa no Google Calendar:', e);
+      handleWorkspaceAuthError(e);
+      console.warn('Falha ao agendar tarefa no Google Calendar:', e);
     }
     return false;
   };
@@ -1307,8 +1298,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Export JSON backup
   const exportBackupJson = () => {
     const payload: AppDataPayload = {
-      version: 2,
+      version: CURRENT_DATA_VERSION,
       lastUpdated: new Date().toISOString(),
+      userName,
+      onboardingCompleted,
       tasks,
       transactions,
       financialGoals,
@@ -1329,12 +1322,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const importBackupJson = (content: string): boolean => {
     try {
       const parsed = JSON.parse(content);
-      if (parsed.tasks && Array.isArray(parsed.tasks)) setTasks(parsed.tasks);
-      if (parsed.transactions && Array.isArray(parsed.transactions)) setTransactions(parsed.transactions);
-      if (parsed.financialGoals && Array.isArray(parsed.financialGoals)) setFinancialGoals(parsed.financialGoals);
-      if (parsed.budgetLimits && Array.isArray(parsed.budgetLimits)) setBudgetLimits(parsed.budgetLimits);
-      if (parsed.draftNotes && Array.isArray(parsed.draftNotes)) setDraftNotes(parsed.draftNotes);
-      if (parsed.dashboardWidgets && Array.isArray(parsed.dashboardWidgets)) setDashboardWidgets(parsed.dashboardWidgets);
+      const sanitized = sanitizeLegacyPayload(parsed);
+      if (sanitized.tasks) setTasks(sanitized.tasks);
+      if (sanitized.transactions) setTransactions(sanitized.transactions);
+      if (sanitized.financialGoals) setFinancialGoals(sanitized.financialGoals);
+      if (sanitized.budgetLimits) setBudgetLimits(sanitized.budgetLimits);
+      if (sanitized.draftNotes) setDraftNotes(sanitized.draftNotes);
+      if (sanitized.dashboardWidgets) setDashboardWidgets(sanitized.dashboardWidgets);
+      if (sanitized.userName) setUserNameState(sanitized.userName);
+      if (sanitized.onboardingCompleted || sanitized.userName) {
+        setOnboardingCompleted(true);
+      }
       triggerAutoSync();
       return true;
     } catch (e) {
@@ -1377,6 +1375,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         theme,
         toggleTheme,
+        setThemeMode,
+        userName,
+        setUserName,
+        onboardingCompleted,
+        completeOnboarding,
         user,
         accessToken,
         isAuthenticating,

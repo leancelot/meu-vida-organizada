@@ -24,13 +24,22 @@ export default defineConfig(() => {
         process.env.VITE_FIREBASE_API_KEY || localConfig.apiKey || ''
       ),
       'import.meta.env.VITE_FIREBASE_PROJECT_ID': JSON.stringify(
-        process.env.VITE_FIREBASE_PROJECT_ID || localConfig.projectId || 'gen-lang-client-0273340873'
+        process.env.VITE_FIREBASE_PROJECT_ID || localConfig.projectId || ''
       ),
       'import.meta.env.VITE_FIREBASE_APP_ID': JSON.stringify(
         process.env.VITE_FIREBASE_APP_ID || localConfig.appId || ''
       ),
       'import.meta.env.VITE_FIREBASE_AUTH_DOMAIN': JSON.stringify(
         process.env.VITE_FIREBASE_AUTH_DOMAIN || localConfig.authDomain || ''
+      ),
+      'import.meta.env.VITE_FIREBASE_STORAGE_BUCKET': JSON.stringify(
+        process.env.VITE_FIREBASE_STORAGE_BUCKET || localConfig.storageBucket || ''
+      ),
+      'import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(
+        process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || localConfig.messagingSenderId || ''
+      ),
+      'import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID': JSON.stringify(
+        process.env.VITE_FIREBASE_OAUTH_CLIENT_ID || localConfig.oAuthClientId || ''
       ),
     },
     resolve: {

@@ -1,4 +1,5 @@
 import { GoogleCalendarEvent } from '../types';
+import { WorkspaceAuthError } from './googleAuthError';
 
 /**
  * List events from primary Google Calendar for a date range
@@ -21,9 +22,13 @@ export async function listCalendarEvents(
     },
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão da Google Agenda expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok) {
     const errorText = await res.text();
-    console.error('Erro ao listar eventos do Google Agenda:', errorText);
+    console.warn('Falha ao listar eventos do Google Agenda:', res.status, errorText);
     throw new Error(`Falha ao carregar eventos da Google Agenda (${res.status})`);
   }
 
@@ -71,9 +76,13 @@ export async function createCalendarEvent(
     body: JSON.stringify(body),
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão da Google Agenda expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok) {
     const errorText = await res.text();
-    console.error('Erro ao criar evento na agenda:', errorText);
+    console.warn('Falha ao criar evento na agenda:', res.status, errorText);
     throw new Error(`Falha ao criar evento na Google Agenda (${res.status})`);
   }
 
@@ -121,6 +130,10 @@ export async function updateCalendarEvent(
     body: JSON.stringify(body),
   });
 
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão da Google Agenda expirada. Conecte sua conta novamente.');
+  }
+
   if (!res.ok) {
     throw new Error(`Falha ao atualizar evento na Google Agenda (${res.status})`);
   }
@@ -140,6 +153,10 @@ export async function deleteCalendarEvent(accessToken: string, eventId: string):
       Authorization: `Bearer ${accessToken}`,
     },
   });
+
+  if (res.status === 401) {
+    throw new WorkspaceAuthError('Sessão da Google Agenda expirada. Conecte sua conta novamente.');
+  }
 
   if (!res.ok && res.status !== 404) {
     throw new Error(`Falha ao excluir evento da Google Agenda (${res.status})`);

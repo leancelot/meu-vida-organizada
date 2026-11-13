@@ -1,6 +1,7 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, FirebaseApp } from 'firebase/app';
 import {
   getAuth,
+  Auth,
   signInWithPopup,
   signInWithCredential,
   GoogleAuthProvider,
@@ -11,9 +12,13 @@ import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { firebaseConfig } from '../config/firebaseConfig';
 
-// Initialize Firebase App
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.authDomain
+);
+
+// Initialize Firebase App only when configured
+export const app: FirebaseApp | null = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
+export const auth: Auth | null = app ? getAuth(app) : null;
 
 export const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
@@ -22,11 +27,9 @@ export const SCOPES = [
 ];
 
 const provider = new GoogleAuthProvider();
-// Add Google Workspace Scopes
 SCOPES.forEach((scope) => {
   provider.addScope(scope);
 });
-// Select account without conflicting offline access_type
 provider.setCustomParameters({
   prompt: 'select_account',
 });
@@ -43,6 +46,12 @@ export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  if (!auth) {
+    cachedAccessToken = null;
+    if (onAuthFailure) onAuthFailure();
+    return () => {};
+  }
+
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
@@ -64,13 +73,16 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string;
 
     // Se estiver rodando nativamente no Android (Capacitor APK)
     if (Capacitor.isNativePlatform()) {
-      // Abre o autenticador no servidor ativo do app
       const baseUrl =
         (import.meta.env.VITE_APP_URL as string) ||
         'https://ais-dev-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app';
       const bridgeUrl = `${baseUrl.replace(/\/$/, '')}?connect_native=1`;
       await Browser.open({ url: bridgeUrl, windowName: '_system' });
       return { isNativeRedirect: true } as any;
+    }
+
+    if (!auth) {
+      throw new Error('Autenticação Google não configurada neste ambiente.');
     }
 
     // Fluxo padrão para Navegador Web Desktop / Dev
@@ -87,10 +99,9 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string;
       error?.code === 'auth/popup-closed-by-user' ||
       error?.code === 'auth/cancelled-popup-request'
     ) {
-      // Usuário fechou o popup ou cancelou intencionalmente
       return null;
     }
-    console.error('Erro na autenticação do Google:', error);
+    console.warn('Falha na autenticação do Google:', error);
     throw error;
   } finally {
     isSigningIn = false;
@@ -103,7 +114,7 @@ export const completeNativeGoogleAuth = async (
 ): Promise<User | null> => {
   cachedAccessToken = accessToken;
 
-  if (idToken) {
+  if (auth && idToken) {
     try {
       const credential = GoogleAuthProvider.credential(idToken, accessToken);
       const result = await signInWithCredential(auth, credential);
@@ -113,7 +124,6 @@ export const completeNativeGoogleAuth = async (
     }
   }
 
-  // Se não houver idToken ou falhar, buscamos dados via Google UserInfo API
   try {
     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -130,7 +140,7 @@ export const completeNativeGoogleAuth = async (
       return syntheticUser;
     }
   } catch (err) {
-    console.error('Erro ao buscar perfil Google via access token:', err);
+    console.warn('Falha ao buscar perfil Google via access token:', err);
   }
 
   return null;
@@ -141,7 +151,9 @@ export const getAccessToken = async (): Promise<string | null> => {
 };
 
 export const logout = async () => {
-  await auth.signOut();
+  if (auth) {
+    await auth.signOut();
+  }
   cachedAccessToken = null;
 };
 

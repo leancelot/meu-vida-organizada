@@ -1,28 +1,24 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  AlertCircle,
   Bell,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Cloud,
   CloudCheck,
   CloudOff,
   Cpu,
   Download,
-  ExternalLink,
-  HardDrive,
   LogOut,
   Moon,
   Package,
   RefreshCw,
   Sliders,
-  Smartphone,
   Sparkles,
   Sun,
   Upload,
+  User as UserIcon,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { hapticSuccess } from '../../services/hapticsService';
 import {
   checkForGitHubUpdates,
   CURRENT_APP_VERSION,
@@ -44,12 +40,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const {
     theme,
     toggleTheme,
+    userName,
+    setUserName,
     user,
     signInWithGoogle,
     signOut,
     driveSyncInfo,
     syncToDriveNow,
-    restoreFromDriveNow,
     tasks,
     transactions,
     financialGoals,
@@ -60,14 +57,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     confirmDestructiveAction,
   } = useApp();
 
+  // Profile name editor
+  const [nameDraft, setNameDraft] = useState(userName || '');
+  const [nameSavedFeedback, setNameSavedFeedback] = useState(false);
+
   // Update check state
   const [isChecking, setIsChecking] = useState(false);
   const [isRefreshingCache, setIsRefreshingCache] = useState(false);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
 
   // File input for JSON backup import
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setNameDraft(userName || '');
+  }, [userName]);
 
   // Load initial settings
   useEffect(() => {
@@ -91,11 +97,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleHardRefresh = async () => {
-    if (confirm('Deseja recarregar o aplicativo para buscar as últimas atualizações salvas?')) {
-      setIsRefreshingCache(true);
-      await refreshAppCache();
-    }
+  const handleHardRefresh = () => {
+    confirmDestructiveAction({
+      title: 'Recarregar aplicativo?',
+      message: 'Deseja recarregar o aplicativo para buscar as últimas atualizações salvas?',
+      confirmText: 'Recarregar',
+      isDestructive: false,
+      onConfirm: async () => {
+        setIsRefreshingCache(true);
+        await refreshAppCache();
+      },
+    });
+  };
+
+  const handleSaveName = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nameDraft.trim()) return;
+    setUserName(nameDraft.trim());
+    hapticSuccess();
+    setNameSavedFeedback(true);
+    setTimeout(() => setNameSavedFeedback(false), 2500);
   };
 
   const handleSyncNow = async () => {
@@ -151,6 +172,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Card 0: Perfil do Usuário */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-4">
+        <div className="flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-800/80 pb-4">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <UserIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Seu Perfil</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Nome exibido nas boas-vindas e no aplicativo
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveName} className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="text"
+            required
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            placeholder="Digite seu nome"
+            className="flex-1 min-h-[44px] px-4 py-2 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+          />
+          <button
+            type="submit"
+            disabled={!nameDraft.trim()}
+            className="min-h-[44px] px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold transition-colors cursor-pointer shrink-0"
+          >
+            {nameSavedFeedback ? 'Nome salvo!' : 'Salvar Nome'}
+          </button>
+        </form>
       </div>
 
       {/* Card 1: Conta & Google Drive */}
@@ -354,7 +408,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
               Tarefas
             </span>
-            <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+            <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
               {tasks.length}
             </p>
           </div>
@@ -363,7 +417,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
               Transações
             </span>
-            <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+            <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
               {transactions.length}
             </p>
           </div>
@@ -372,7 +426,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
               Metas & Notas
             </span>
-            <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+            <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
               {financialGoals.length + draftNotes.length}
             </p>
           </div>
@@ -382,7 +436,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Privacidade
             </span>
             <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-              100% no seu controle
+              Controle total dos seus dados
             </p>
           </div>
         </div>
@@ -414,10 +468,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               reader.onload = (ev) => {
                 const content = ev.target?.result as string;
                 if (content && importBackupJson(content)) {
-                  alert('Backup importado com sucesso!');
+                  setBackupMessage('Backup importado com sucesso.');
                 } else {
-                  alert('Arquivo de backup inválido.');
+                  setBackupMessage('Arquivo de backup inválido.');
                 }
+                setTimeout(() => setBackupMessage(null), 4000);
               };
               reader.readAsText(file);
               e.target.value = '';
@@ -425,6 +480,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             className="hidden"
           />
         </div>
+        {backupMessage && (
+          <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400">{backupMessage}</p>
+        )}
       </div>
 
       {/* Card 4: Versão & Atualizações do App */}
@@ -511,15 +569,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </button>
           </div>
         )}
-
-        {/* Tip on Mobile PWA */}
-        <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 flex items-start gap-3">
-          <Smartphone className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-            <strong className="text-zinc-700 dark:text-zinc-300 font-semibold">Dica para celular: </strong>
-            Para usar o VidaOrganizada em tela cheia como um aplicativo instalado, abra o link no Google Chrome (Android) ou Safari (iPhone), toque no menu de opções (⋮ ou Compartilhar) e selecione <em>"Adicionar à tela de início"</em>.
-          </p>
-        </div>
       </div>
     </div>
   );

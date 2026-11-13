@@ -4,11 +4,9 @@ import {
   CloudAlert,
   CloudCheck,
   CloudOff,
-  LayoutGrid,
   LogOut,
   Moon,
   RefreshCw,
-  Smartphone,
   Sparkles,
   Sun,
 } from 'lucide-react';
@@ -31,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
     theme,
     toggleTheme,
     user,
+    userName,
     isAuthenticating,
     signInWithGoogle,
     signOut,
@@ -50,32 +49,27 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
-          {/* Logo & Current Date */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <Sparkles className="w-5 h-5" />
+        <div className="flex items-center justify-between h-15 gap-6">
+          {/* Zone 1: Brand & Date */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-lg text-zinc-900 dark:text-zinc-100 tracking-tight">
-                  VidaOrganizada
-                </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
-                  Google Sync
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 capitalize hidden sm:block">
+              <span className="font-bold text-base sm:text-lg text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap block leading-tight">
+                VidaOrganizada
+              </span>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 capitalize hidden sm:block">
                 {capitalizedToday}
               </p>
             </div>
           </div>
 
-          {/* Desktop Navigation Tabs */}
+          {/* Zone 2: 4 Unified Desktop Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
             <button
               onClick={() => setCurrentTab('dashboard')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 currentTab === 'dashboard'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -84,28 +78,8 @@ export const Header: React.FC<HeaderProps> = ({
               Início
             </button>
             <button
-              onClick={() => setCurrentTab('tarefas')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                currentTab === 'tarefas'
-                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
-              }`}
-            >
-              Tarefas
-            </button>
-            <button
-              onClick={() => setCurrentTab('financas')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                currentTab === 'financas'
-                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
-              }`}
-            >
-              Finanças
-            </button>
-            <button
               onClick={() => setCurrentTab('agenda')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 currentTab === 'agenda'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -114,8 +88,18 @@ export const Header: React.FC<HeaderProps> = ({
               Agenda
             </button>
             <button
+              onClick={() => setCurrentTab('financas')}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                currentTab === 'financas'
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+              }`}
+            >
+              Finanças
+            </button>
+            <button
               onClick={() => setCurrentTab('configuracoes')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 currentTab === 'configuracoes'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -202,18 +186,18 @@ export const Header: React.FC<HeaderProps> = ({
                   {user.photoURL ? (
                     <img
                       src={user.photoURL}
-                      alt={user.displayName || 'Usuário'}
+                      alt={userName || user.displayName || 'Usuário'}
                       className="w-8 h-8 rounded-lg object-cover"
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center">
-                      {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                      {(userName || user.displayName || user.email || 'U')[0].toUpperCase()}
                     </div>
                   )}
                 </button>
                 <div className="hidden lg:block text-left">
                   <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[120px]">
-                    {user.displayName || 'Usuário'}
+                    {userName || user.displayName || 'Usuário'}
                   </p>
                   <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[120px]">
                     {user.email}

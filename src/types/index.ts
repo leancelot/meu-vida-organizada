@@ -100,6 +100,8 @@ export interface DriveSyncInfo {
 export interface AppDataPayload {
   version: number;
   lastUpdated: string;
+  userName?: string;
+  onboardingCompleted?: boolean;
   tasks: TaskItem[];
   transactions: Transaction[];
   financialGoals: FinancialGoal[];

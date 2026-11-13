@@ -349,7 +349,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex: Arroz, feijão, café..."
+                placeholder="Itens ou observações do comprovante"
                 className="w-full px-3 py-2 text-xs rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none resize-none"
               />
             </div>

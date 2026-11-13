@@ -7,7 +7,6 @@ import {
   CreditCard,
   DollarSign,
   Download,
-  Filter,
   PieChart as PieChartIcon,
   PiggyBank,
   Plus,
@@ -61,7 +60,15 @@ export const FinanceView: React.FC = () => {
   const [goalTitle, setGoalTitle] = useState('');
   const [goalTarget, setGoalTarget] = useState('');
   const [goalCurrent, setGoalCurrent] = useState('');
-  const [goalDate, setGoalDate] = useState('2027-12-31');
+  const [goalDate, setGoalDate] = useState('');
+
+  // Add amount to existing goal modal
+  const [addingToGoal, setAddingToGoal] = useState<{ id: string; title: string } | null>(null);
+  const [addGoalAmount, setAddGoalAmount] = useState('');
+
+  // Budget drafts when editing limits
+  const [budgetDrafts, setBudgetDrafts] = useState<Record<string, string>>({});
+  const [csvFeedback, setCsvFeedback] = useState<string | null>(null);
 
   // Month navigation
   const prevMonth = () => {
@@ -167,7 +174,8 @@ export const FinanceView: React.FC = () => {
   // Export CSV
   const exportToCSV = () => {
     if (monthlyTransactions.length === 0) {
-      alert('Nenhuma transação encontrada no mês atual para exportar.');
+      setCsvFeedback('Nenhuma transação registrada neste mês para exportar.');
+      setTimeout(() => setCsvFeedback(null), 3500);
       return;
     }
 
@@ -222,13 +230,13 @@ export const FinanceView: React.FC = () => {
   const handleCreateGoal = (e: React.FormEvent) => {
     e.preventDefault();
     const targetNum = parseFloat(goalTarget.replace(',', '.'));
-    const currentNum = parseFloat(goalCurrent.replace(',', '.') || '0');
+    const currentNum = goalCurrent.trim() ? parseFloat(goalCurrent.replace(',', '.')) : 0;
     if (!goalTitle.trim() || isNaN(targetNum) || targetNum <= 0) return;
 
     addGoal({
       title: goalTitle.trim(),
       targetAmount: targetNum,
-      currentAmount: currentNum,
+      currentAmount: isNaN(currentNum) ? 0 : currentNum,
       targetDate: goalDate,
       category: 'investimentos',
       color: '#6366f1',
@@ -237,7 +245,49 @@ export const FinanceView: React.FC = () => {
     setGoalTitle('');
     setGoalTarget('');
     setGoalCurrent('');
+    setGoalDate('');
     setIsGoalModalOpen(false);
+  };
+
+  const openBudgetModal = () => {
+    const drafts: Record<string, string> = {};
+    (['moradia', 'alimentacao', 'transporte', 'saude', 'lazer', 'outros'] as FinanceCategory[]).forEach(
+      (cat) => {
+        const existing = budgetLimits.find((b) => b.category === cat);
+        drafts[cat] = existing && existing.monthlyLimit > 0 ? String(existing.monthlyLimit) : '';
+      }
+    );
+    setBudgetDrafts(drafts);
+    setIsBudgetModalOpen(true);
+  };
+
+  const handleSaveBudgets = (e: React.FormEvent) => {
+    e.preventDefault();
+    (['moradia', 'alimentacao', 'transporte', 'saude', 'lazer', 'outros'] as FinanceCategory[]).forEach(
+      (cat) => {
+        const raw = (budgetDrafts[cat] || '').trim();
+        if (!raw) {
+          updateBudgetLimit(cat, 0);
+        } else {
+          const val = parseFloat(raw.replace(',', '.'));
+          if (!isNaN(val)) {
+            updateBudgetLimit(cat, val);
+          }
+        }
+      }
+    );
+    setIsBudgetModalOpen(false);
+  };
+
+  const handleAddAmountToGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addingToGoal) return;
+    const num = parseFloat(addGoalAmount.replace(',', '.'));
+    const targetGoal = financialGoals.find((g) => g.id === addingToGoal.id);
+    if (!targetGoal || isNaN(num) || num <= 0) return;
+    updateGoal(targetGoal.id, { currentAmount: targetGoal.currentAmount + num });
+    setAddingToGoal(null);
+    setAddGoalAmount('');
   };
 
   return (
@@ -311,7 +361,7 @@ export const FinanceView: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setIsBudgetModalOpen(true)}
+            onClick={openBudgetModal}
             className="p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             title="Ajustar limites de orçamento"
           >
@@ -336,6 +386,12 @@ export const FinanceView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {csvFeedback && (
+        <div className="px-4 py-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs font-medium text-amber-700 dark:text-amber-300">
+          {csvFeedback}
+        </div>
+      )}
 
       {/* KPI Cards - 2 cols on mobile, 4 cols on desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
@@ -520,74 +576,89 @@ export const FinanceView: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={() => setIsBudgetModalOpen(true)}
+              onClick={openBudgetModal}
               className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
             >
-              Ajustar Limites
+              Definir Limites
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-            {(['moradia', 'alimentacao', 'transporte', 'saude', 'lazer', 'outros'] as FinanceCategory[]).map(
-              (cat) => {
-                const spent = categoryExpenses[cat] || 0;
-                const budgetObj = budgetLimits.find((b) => b.category === cat);
-                const limit = budgetObj?.monthlyLimit || 1000;
-                const percent = Math.round((spent / limit) * 100);
-                const isOver = spent > limit;
+          {budgetLimits.filter((b) => b.monthlyLimit > 0).length === 0 ? (
+            <div className="py-12 text-center text-zinc-400 space-y-2">
+              <SlidersHorizontal className="w-7 h-7 mx-auto text-zinc-300 dark:text-zinc-600" />
+              <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Nenhum limite de orçamento definido
+              </p>
+              <button
+                onClick={openBudgetModal}
+                className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+              >
+                Configurar limites por categoria
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+              {budgetLimits
+                .filter((b) => b.monthlyLimit > 0)
+                .map((budgetObj) => {
+                  const cat = budgetObj.category;
+                  const spent = categoryExpenses[cat] || 0;
+                  const limit = budgetObj.monthlyLimit;
+                  const percent = Math.round((spent / limit) * 100);
+                  const isOver = spent > limit;
 
-                return (
-                  <div
-                    key={cat}
-                    className={`p-3.5 rounded-2xl border transition-colors ${
-                      isOver
-                        ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20'
-                        : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-850'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                        {getCategoryLabel(cat)}
-                      </span>
-                      <span
-                        className={`text-xs font-bold ${
-                          isOver ? 'text-rose-600' : 'text-zinc-600 dark:text-zinc-300'
-                        }`}
-                      >
-                        {percent}%
-                      </span>
+                  return (
+                    <div
+                      key={cat}
+                      className={`p-3.5 rounded-2xl border transition-colors ${
+                        isOver
+                          ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20'
+                          : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-850'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                          {getCategoryLabel(cat)}
+                        </span>
+                        <span
+                          className={`text-xs font-bold tabular-nums ${
+                            isOver ? 'text-rose-600' : 'text-zinc-600 dark:text-zinc-300'
+                          }`}
+                        >
+                          {percent}%
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline justify-between text-xs text-zinc-500 mb-2 tabular-nums">
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                          {formatBRL(spent)}
+                        </span>
+                        <span>Limite: {formatBRL(limit)}</span>
+                      </div>
+
+                      <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-2 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            isOver
+                              ? 'bg-rose-500'
+                              : percent > 80
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${Math.min(100, percent)}%` }}
+                        />
+                      </div>
+
+                      {isOver && (
+                        <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1.5 tabular-nums">
+                          Limite excedido em {formatBRL(spent - limit)}
+                        </p>
+                      )}
                     </div>
-
-                    <div className="flex items-baseline justify-between text-xs text-zinc-500 mb-2">
-                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {formatBRL(spent)}
-                      </span>
-                      <span>Limite: {formatBRL(limit)}</span>
-                    </div>
-
-                    <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-2 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          isOver
-                            ? 'bg-rose-500'
-                            : percent > 80
-                            ? 'bg-amber-500'
-                            : 'bg-emerald-500'
-                        }`}
-                        style={{ width: `${Math.min(100, percent)}%` }}
-                      />
-                    </div>
-
-                    {isOver && (
-                      <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1.5">
-                        ⚠️ Limite excedido em {formatBRL(spent - limit)}
-                      </p>
-                    )}
-                  </div>
-                );
-              }
-            )}
-          </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -614,62 +685,76 @@ export const FinanceView: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {financialGoals.map((goal) => {
-            const percent = Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100));
+        {financialGoals.length === 0 ? (
+          <div className="py-10 text-center text-zinc-400 space-y-2">
+            <Target className="w-8 h-8 mx-auto text-zinc-300 dark:text-zinc-600" />
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              Nenhuma meta financeira cadastrada
+            </p>
+            <button
+              onClick={() => setIsGoalModalOpen(true)}
+              className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+            >
+              Criar primeira meta
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {financialGoals.map((goal) => {
+              const percent =
+                goal.targetAmount > 0
+                  ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
+                  : 0;
 
-            return (
-              <div
-                key={goal.id}
-                className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-850 relative group"
-              >
-                <div className="flex items-start justify-between">
-                  <h4 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
-                    {goal.title}
-                  </h4>
-                  <button
-                    onClick={() => deleteGoal(goal.id)}
-                    className="text-zinc-400 hover:text-rose-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              return (
+                <div
+                  key={goal.id}
+                  className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-850 relative group"
+                >
+                  <div className="flex items-start justify-between">
+                    <h4 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                      {goal.title}
+                    </h4>
+                    <button
+                      onClick={() => deleteGoal(goal.id)}
+                      className="text-zinc-400 hover:text-rose-500 p-1 sm:opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      title="Excluir meta"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
-                <div className="mt-3 flex items-baseline justify-between text-xs">
-                  <span className="text-base font-bold text-indigo-600 dark:text-indigo-400">
-                    {formatBRL(goal.currentAmount)}
-                  </span>
-                  <span className="text-zinc-500">Alvo: {formatBRL(goal.targetAmount)}</span>
-                </div>
+                  <div className="mt-3 flex items-baseline justify-between text-xs tabular-nums">
+                    <span className="text-base font-bold text-indigo-600 dark:text-indigo-400">
+                      {formatBRL(goal.currentAmount)}
+                    </span>
+                    <span className="text-zinc-500">Alvo: {formatBRL(goal.targetAmount)}</span>
+                  </div>
 
-                <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-2.5 rounded-full overflow-hidden mt-2">
-                  <div
-                    className="h-full rounded-full bg-indigo-600 transition-all duration-500"
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
+                  <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-2.5 rounded-full overflow-hidden mt-2">
+                    <div
+                      className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
 
-                <div className="mt-2.5 flex items-center justify-between text-xs text-zinc-500">
-                  <span>{percent}% alcançado</span>
-                  <button
-                    onClick={() => {
-                      const addValue = prompt(`Quanto deseja adicionar à meta "${goal.title}"?`, '500');
-                      if (addValue) {
-                        const num = parseFloat(addValue.replace(',', '.'));
-                        if (!isNaN(num) && num > 0) {
-                          updateGoal(goal.id, { currentAmount: goal.currentAmount + num });
-                        }
-                      }
-                    }}
-                    className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-                  >
-                    + Adicionar Valor
-                  </button>
+                  <div className="mt-2.5 flex items-center justify-between text-xs text-zinc-500 tabular-nums">
+                    <span>{percent}% alcançado</span>
+                    <button
+                      onClick={() => {
+                        setAddingToGoal({ id: goal.id, title: goal.title });
+                        setAddGoalAmount('');
+                      }}
+                      className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                    >
+                      + Adicionar Valor
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Transactions List */}
@@ -860,7 +945,7 @@ export const FinanceView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Supermercado, Salário, Internet, Combustível"
+                  placeholder="Descrição da transação"
                   value={txTitle}
                   onChange={(e) => setTxTitle(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none"
@@ -877,7 +962,7 @@ export const FinanceView: React.FC = () => {
                     step="0.01"
                     min="0.01"
                     required
-                    placeholder="0,00"
+                    placeholder="Valor"
                     value={txAmount}
                     onChange={(e) => setTxAmount(e.target.value)}
                     className="w-full px-3.5 py-2 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none"
@@ -961,7 +1046,7 @@ export const FinanceView: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Parcelado em 2x, compra no mercado central..."
+                  placeholder="Observações (opcional)"
                   value={txNotes}
                   onChange={(e) => setTxNotes(e.target.value)}
                   className="w-full px-3.5 py-2 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none"
@@ -1008,46 +1093,49 @@ export const FinanceView: React.FC = () => {
               </button>
             </div>
 
-            <div className="mt-4 space-y-3">
-              {(['moradia', 'alimentacao', 'transporte', 'saude', 'lazer', 'outros'] as FinanceCategory[]).map(
-                (cat) => {
-                  const currentLimit =
-                    budgetLimits.find((b) => b.category === cat)?.monthlyLimit || 1000;
-                  return (
+            <form onSubmit={handleSaveBudgets}>
+              <div className="mt-4 space-y-3">
+                {(['moradia', 'alimentacao', 'transporte', 'saude', 'lazer', 'outros'] as FinanceCategory[]).map(
+                  (cat) => (
                     <div key={cat} className="flex items-center justify-between gap-4">
                       <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                         {getCategoryLabel(cat)}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <span className="text-xs text-zinc-400">R$</span>
                         <input
                           type="number"
-                          step="50"
-                          defaultValue={currentLimit}
-                          onBlur={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (!isNaN(val) && val >= 0) {
-                              updateBudgetLimit(cat, val);
-                            }
-                          }}
-                          className="w-24 px-2 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 text-right font-semibold"
+                          step="0.01"
+                          min="0"
+                          placeholder="Sem limite"
+                          value={budgetDrafts[cat] ?? ''}
+                          onChange={(e) =>
+                            setBudgetDrafts((prev) => ({ ...prev, [cat]: e.target.value }))
+                          }
+                          className="w-28 px-2.5 py-1.5 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 text-right font-semibold tabular-nums focus:outline-none"
                         />
                       </div>
                     </div>
-                  );
-                }
-              )}
-            </div>
+                  )
+                )}
+              </div>
 
-            <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsBudgetModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
-              >
-                Concluir
-              </button>
-            </div>
+              <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBudgetModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                >
+                  Salvar Limites
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1076,7 +1164,7 @@ export const FinanceView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Reserva de Emergência, Carro Novo"
+                  placeholder="Nome da meta"
                   value={goalTitle}
                   onChange={(e) => setGoalTitle(e.target.value)}
                   className="w-full px-3.5 py-2 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none"
@@ -1091,8 +1179,9 @@ export const FinanceView: React.FC = () => {
                   <input
                     type="number"
                     required
-                    min="1"
-                    placeholder="10000"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="Valor alvo"
                     value={goalTarget}
                     onChange={(e) => setGoalTarget(e.target.value)}
                     className="w-full px-3.5 py-2 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none"
@@ -1106,7 +1195,8 @@ export const FinanceView: React.FC = () => {
                   <input
                     type="number"
                     min="0"
-                    placeholder="0"
+                    step="0.01"
+                    placeholder="Valor inicial"
                     value={goalCurrent}
                     onChange={(e) => setGoalCurrent(e.target.value)}
                     className="w-full px-3.5 py-2 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none"
@@ -1116,7 +1206,7 @@ export const FinanceView: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Data Alvo
+                  Data Alvo (opcional)
                 </label>
                 <input
                   type="date"
@@ -1139,6 +1229,62 @@ export const FinanceView: React.FC = () => {
                   className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
                 >
                   Salvar Meta
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Amount to Goal Modal */}
+      {addingToGoal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate pr-2">
+                Adicionar à meta
+              </h3>
+              <button
+                onClick={() => setAddingToGoal(null)}
+                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddAmountToGoal} className="mt-4 space-y-4">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Meta: <strong className="text-zinc-800 dark:text-zinc-200">{addingToGoal.title}</strong>
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Valor a adicionar (R$) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0.01"
+                  step="0.01"
+                  autoFocus
+                  placeholder="Valor"
+                  value={addGoalAmount}
+                  onChange={(e) => setAddGoalAmount(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAddingToGoal(null)}
+                  className="px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                >
+                  Adicionar
                 </button>
               </div>
             </form>
