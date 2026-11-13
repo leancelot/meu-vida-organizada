@@ -4,6 +4,8 @@ import {
   CloudAlert,
   CloudCheck,
   CloudOff,
+  Eye,
+  EyeOff,
   LogOut,
   Moon,
   RefreshCw,
@@ -35,6 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
     signOut,
     driveSyncInfo,
     notificationsList,
+    hideValues,
+    toggleHideValues,
   } = useApp();
 
   const todayStr = new Intl.DateTimeFormat('pt-BR', {
@@ -111,6 +115,25 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right actions: Theme Toggle, Notifications, Cloud Sync, Google Auth */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Privacy Mode Toggle (Ocultar Valores) */}
+            <button
+              onClick={toggleHideValues}
+              title={hideValues ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'}
+              aria-label={hideValues ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'}
+              aria-pressed={hideValues}
+              className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+                hideValues
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+              }`}
+            >
+              {hideValues ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
+
             {/* Theme Toggle (Dark / Light) */}
             <button
               onClick={toggleTheme}

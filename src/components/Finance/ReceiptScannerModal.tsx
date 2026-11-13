@@ -6,7 +6,9 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
+  Pencil,
   Receipt,
+  RefreshCw,
   Sparkles,
   Upload,
   X,
@@ -29,6 +31,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
   const [step, setStep] = useState<'upload' | 'scanning' | 'review'>('upload');
   const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Parsed Form fields
@@ -47,9 +50,13 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const handleFileSelected = async (file: File) => {
     if (!file) return;
 
-    // Show preview
+    if (selectedImagePreview) {
+      URL.revokeObjectURL(selectedImagePreview);
+    }
+
     const previewUrl = URL.createObjectURL(file);
     setSelectedImagePreview(previewUrl);
+    setLastFile(file);
     setErrorMsg(null);
     setStep('scanning');
 
@@ -58,7 +65,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
       // Populate review fields
       setTitle(data.title);
-      setAmount(data.amount.toFixed(2));
+      setAmount(data.amount > 0 ? data.amount.toFixed(2) : '');
       setDate(data.date);
       setCategory(data.category);
       setPaymentMethod(data.paymentMethod || 'cartao_credito');
@@ -68,10 +75,26 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     } catch (err: any) {
       console.error('Falha ao escanear recibo:', err);
       setErrorMsg(
-        err.message || 'Não foi possível ler a nota fiscal. Tente uma foto mais nítida ou bem iluminada.'
+        err.message || 'Não foi possível ler a nota fiscal. Tente novamente ou preencha manualmente.'
       );
       setStep('upload');
     }
+  };
+
+  const handleRetryScan = () => {
+    if (!lastFile) return;
+    handleFileSelected(lastFile);
+  };
+
+  const handleManualFallback = () => {
+    setErrorMsg(null);
+    setTitle('');
+    setAmount('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setCategory('alimentacao');
+    setPaymentMethod('cartao_credito');
+    setNotes('');
+    setStep('review');
   };
 
   const handleConfirmAndSave = (e: React.FormEvent) => {
@@ -91,20 +114,30 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     });
 
     confetti({ particleCount: 35, spread: 60, origin: { y: 0.7 } });
+    resetAll();
     onClose();
   };
 
   const resetAll = () => {
+    if (selectedImagePreview) {
+      URL.revokeObjectURL(selectedImagePreview);
+    }
     setStep('upload');
     setSelectedImagePreview(null);
+    setLastFile(null);
     setErrorMsg(null);
+  };
+
+  const handleClose = () => {
+    resetAll();
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 sm:p-8 max-h-[92vh] overflow-y-auto relative">
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-5 right-5 p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
         >
           <X className="w-5 h-5" />
@@ -132,12 +165,37 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 flex items-start gap-2.5 text-xs text-rose-800 dark:text-rose-300">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-            <div className="flex-1">
-              <span className="font-semibold block">Erro na leitura:</span>
-              <span>{errorMsg}</span>
+          <div className="mb-4 p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 space-y-3 text-xs text-rose-800 dark:text-rose-200">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+              <div className="flex-1">
+                <span className="font-semibold block">Erro na leitura</span>
+                <span>{errorMsg}</span>
+              </div>
             </div>
+
+            {step === 'upload' && (
+              <div className="flex items-center gap-2 flex-wrap pl-6">
+                {lastFile && (
+                  <button
+                    type="button"
+                    onClick={handleRetryScan}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold cursor-pointer transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Tentar novamente</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleManualFallback}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] rounded-xl border border-rose-300 dark:border-rose-700 bg-white dark:bg-zinc-900 text-rose-700 dark:text-rose-300 hover:bg-rose-100/60 dark:hover:bg-rose-950/50 font-semibold cursor-pointer transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Preencher manualmente</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -211,10 +269,8 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         {/* STEP 2: Scanning in Progress */}
         {step === 'scanning' && (
           <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center animate-pulse">
-                <Sparkles className="w-8 h-8 text-indigo-600 animate-spin" />
-              </div>
+            <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
             </div>
             <div>
               <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
@@ -366,7 +422,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
                 >
                   Cancelar

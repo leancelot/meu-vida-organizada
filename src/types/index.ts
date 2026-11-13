@@ -97,6 +97,21 @@ export interface DriveSyncInfo {
   errorMessage?: string;
 }
 
+export interface PendingBankNotification {
+  id: string;
+  signature: string;
+  bankName: string;
+  rawText: string;
+  title: string;
+  amount: number;
+  type: TransactionType;
+  category: FinanceCategory;
+  paymentMethod?: Transaction['paymentMethod'];
+  date: string; // YYYY-MM-DD
+  receivedAt: string; // ISO string
+  source: 'android' | 'manual';
+}
+
 export interface AppDataPayload {
   version: number;
   lastUpdated: string;
@@ -108,5 +123,6 @@ export interface AppDataPayload {
   budgetLimits: BudgetLimit[];
   draftNotes: DraftNote[];
   dashboardWidgets?: string[];
+  pendingBankNotifications?: PendingBankNotification[];
   habits?: any[]; // Kept for backwards compatibility with existing backups
 }

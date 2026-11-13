@@ -13,7 +13,18 @@ import {
   DriveSyncInfo,
   AppDataPayload,
   GoogleCalendarEvent,
+  PendingBankNotification,
 } from '../types';
+import { parseBankNotificationText } from '../services/bankNotificationParser';
+import {
+  acknowledgeNativeBankNotifications,
+  checkBankNotificationPermission,
+  fetchNativePendingBankNotifications,
+  isAndroidNotificationCaptureSupported,
+  NativePendingBankEvent,
+  openBankNotificationSettings,
+  subscribeNativeBankNotifications,
+} from '../services/bankNotificationBridge';
 import {
   initAuth,
   googleSignIn,
@@ -51,7 +62,16 @@ const STORAGE_KEY_DATA = 'vidaorganizada_local_data_v2';
 const STORAGE_KEY_SYNC = 'vidaorganizada_sync_info_v2';
 const STORAGE_KEY_NOTIFS = 'vidaorganizada_notifications_v2';
 const STORAGE_KEY_THEME = 'vidaorganizada_theme_v1';
+const STORAGE_KEY_HIDE_VALUES = 'vidaorganizada_hide_values_v1';
+const STORAGE_KEY_PENDING_BANK = 'vidaorganizada_pending_bank_v1';
+const STORAGE_KEY_BANK_SIGS = 'vidaorganizada_ingested_bank_sigs_v1';
 const CURRENT_DATA_VERSION = 3;
+const BANK_DEDUPE_WINDOW_MS = 10 * 60 * 1000;
+
+const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
 
 const DEFAULT_WIDGETS = ['overview', 'schedule', 'tasks', 'finance', 'scratchpad', 'reminders'];
 
@@ -112,6 +132,9 @@ function sanitizeLegacyPayload(parsed: any): Partial<AppDataPayload> {
       budgetLimits: rawBudgets,
       draftNotes: rawDrafts,
       dashboardWidgets: Array.isArray(parsed.dashboardWidgets) ? parsed.dashboardWidgets : DEFAULT_WIDGETS,
+      pendingBankNotifications: Array.isArray(parsed.pendingBankNotifications)
+        ? parsed.pendingBankNotifications
+        : [],
     };
   }
 
@@ -143,6 +166,9 @@ function sanitizeLegacyPayload(parsed: any): Partial<AppDataPayload> {
     budgetLimits,
     draftNotes,
     dashboardWidgets: Array.isArray(parsed.dashboardWidgets) ? parsed.dashboardWidgets : DEFAULT_WIDGETS,
+    pendingBankNotifications: Array.isArray(parsed.pendingBankNotifications)
+      ? parsed.pendingBankNotifications
+      : [],
   };
 }
 
@@ -200,6 +226,11 @@ interface AppContextType {
   deleteTask: (id: string) => void;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
 
+  // Privacy Mode state
+  hideValues: boolean;
+  toggleHideValues: () => void;
+  formatMoney: (amount: number) => string;
+
   // Finance actions
   addTransaction: (tx: Omit<Transaction, 'id'>) => void;
   deleteTransaction: (id: string) => void;
@@ -207,6 +238,21 @@ interface AppContextType {
   updateGoal: (id: string, updates: Partial<FinancialGoal>) => void;
   deleteGoal: (id: string) => void;
   updateBudgetLimit: (category: Transaction['category'], limit: number) => void;
+
+  // Bank Notification Review Queue
+  pendingBankNotifications: PendingBankNotification[];
+  bankListenerSupported: boolean;
+  bankListenerPermission: boolean;
+  refreshBankListenerPermission: () => Promise<boolean>;
+  openBankListenerSettings: () => Promise<void>;
+  enqueueParsedBankText: (rawText: string, bankName?: string) => PendingBankNotification | null;
+  approvePendingBankNotification: (
+    id: string,
+    overrides?: Partial<Omit<Transaction, 'id'>>
+  ) => void;
+  approveAllPendingBankNotifications: () => void;
+  dismissPendingBankNotification: (id: string) => void;
+  clearPendingBankNotifications: () => void;
 
   // Draft / Rascunhos actions
   addDraftNote: (note: Omit<DraftNote, 'id' | 'updatedAt'>) => void;
@@ -335,6 +381,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     () => initialPayload.dashboardWidgets || DEFAULT_WIDGETS
   );
 
+  // Global Privacy Mode (persisted in localStorage)
+  const [hideValues, setHideValues] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_HIDE_VALUES) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_HIDE_VALUES, String(hideValues));
+    } catch {
+      // ignore
+    }
+  }, [hideValues]);
+
+  const toggleHideValues = useCallback(() => {
+    hapticImpactLight();
+    setHideValues((prev) => !prev);
+  }, []);
+
+  const formatMoney = useCallback(
+    (amount: number) => {
+      if (hideValues) return 'R$ •••••';
+      return BRL_FORMATTER.format(amount);
+    },
+    [hideValues]
+  );
+
+  // Bank notification review queue & Android listener state
+  const bankListenerSupported = isAndroidNotificationCaptureSupported();
+  const [bankListenerPermission, setBankListenerPermission] = useState<boolean>(false);
+  const [pendingBankNotifications, setPendingBankNotifications] = useState<PendingBankNotification[]>(
+    () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_PENDING_BANK);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {
+        // ignore
+      }
+      return Array.isArray(initialPayload.pendingBankNotifications)
+        ? initialPayload.pendingBankNotifications
+        : [];
+    }
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_PENDING_BANK, JSON.stringify(pendingBankNotifications));
+    } catch {
+      // ignore
+    }
+  }, [pendingBankNotifications]);
+
   // Calendar events
   const [calendarEvents, setCalendarEvents] = useState<GoogleCalendarEvent[]>([]);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
@@ -436,6 +540,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       budgetLimits,
       draftNotes,
       dashboardWidgets,
+      pendingBankNotifications,
     };
     try {
       localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(payload));
@@ -451,6 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     budgetLimits,
     draftNotes,
     dashboardWidgets,
+    pendingBankNotifications,
   ]);
 
   // Persist notifications
@@ -485,6 +591,135 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     return () => unsubscribe();
   }, []);
+
+  // Bank Notification Listener & Review Queue Ingestion (Android + Resume Sync)
+  const recordAndCheckSignatureDuplicate = useCallback((signature: string): boolean => {
+    const now = Date.now();
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_BANK_SIGS);
+      const parsed: Record<string, number> = raw ? JSON.parse(raw) : {};
+      const cleaned: Record<string, number> = {};
+      for (const [k, ts] of Object.entries(parsed)) {
+        if (typeof ts === 'number' && now - ts < BANK_DEDUPE_WINDOW_MS) {
+          cleaned[k] = ts;
+        }
+      }
+      if (cleaned[signature]) {
+        localStorage.setItem(STORAGE_KEY_BANK_SIGS, JSON.stringify(cleaned));
+        return true;
+      }
+      cleaned[signature] = now;
+      localStorage.setItem(STORAGE_KEY_BANK_SIGS, JSON.stringify(cleaned));
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const ingestNativeEvents = useCallback(
+    (events: NativePendingBankEvent[]) => {
+      if (!events.length) return;
+      const newItems: PendingBankNotification[] = [];
+
+      events.forEach((evt) => {
+        const parsed = parseBankNotificationText({
+          rawText: evt.text || '',
+          title: evt.title,
+          bankName: evt.bankName,
+          timestamp: evt.timestamp,
+          source: 'android',
+          allowAmbiguous: false,
+        });
+        if (!parsed) return;
+        if (recordAndCheckSignatureDuplicate(parsed.signature)) return;
+        newItems.push({
+          ...parsed,
+          id: evt.id || `bn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        });
+      });
+
+      if (newItems.length > 0) {
+        setPendingBankNotifications((prev) => {
+          const existingIds = new Set(prev.map((item) => item.id));
+          const existingSigs = new Set(prev.map((item) => item.signature));
+          const uniqueIncoming = newItems.filter(
+            (item) => !existingIds.has(item.id) && !existingSigs.has(item.signature)
+          );
+          return uniqueIncoming.length > 0 ? [...uniqueIncoming, ...prev] : prev;
+        });
+      }
+    },
+    [recordAndCheckSignatureDuplicate]
+  );
+
+  const refreshBankListenerPermission = useCallback(async (): Promise<boolean> => {
+    if (!bankListenerSupported) {
+      setBankListenerPermission(false);
+      return false;
+    }
+    const granted = await checkBankNotificationPermission();
+    setBankListenerPermission(granted);
+    return granted;
+  }, [bankListenerSupported]);
+
+  const openBankListenerSettings = useCallback(async () => {
+    await openBankNotificationSettings();
+  }, []);
+
+  const syncNativeBankNotifications = useCallback(async () => {
+    if (!bankListenerSupported) return;
+    const pending = await fetchNativePendingBankNotifications();
+    if (pending.length === 0) return;
+
+    ingestNativeEvents(pending);
+    const ids = pending.map((p) => p.id).filter(Boolean);
+    await acknowledgeNativeBankNotifications(ids);
+  }, [bankListenerSupported, ingestNativeEvents]);
+
+  useEffect(() => {
+    if (!bankListenerSupported) return;
+
+    let active = true;
+    let removeNativeListener: (() => void) | null = null;
+    let appStateHandle: { remove: () => Promise<void> } | null = null;
+
+    refreshBankListenerPermission();
+    syncNativeBankNotifications();
+
+    subscribeNativeBankNotifications((event) => {
+      if (!active) return;
+      ingestNativeEvents([event]);
+      if (event.id) {
+        acknowledgeNativeBankNotifications([event.id]);
+      }
+    }).then((unsub) => {
+      if (active) {
+        removeNativeListener = unsub;
+      } else if (unsub) {
+        unsub();
+      }
+    });
+
+    CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive && active) {
+        refreshBankListenerPermission();
+        syncNativeBankNotifications();
+      }
+    }).then((handle) => {
+      appStateHandle = handle;
+    });
+
+    return () => {
+      active = false;
+      if (removeNativeListener) removeNativeListener();
+      if (appStateHandle) appStateHandle.remove().catch(() => {});
+    };
+  }, [
+    bankListenerSupported,
+    ingestNativeEvents,
+    refreshBankListenerPermission,
+    syncNativeBankNotifications,
+  ]);
 
   // Handle native Android deep-link OAuth callback (com.vidaorganizada.app://oauth#access_token=...)
   useEffect(() => {
@@ -698,6 +933,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           budgetLimits,
           draftNotes,
           dashboardWidgets,
+          pendingBankNotifications,
         };
 
         const result: DriveFileInfo = await saveToDrive(accessToken, payload, driveSyncInfo.fileId);
@@ -728,6 +964,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     budgetLimits,
     draftNotes,
     dashboardWidgets,
+    pendingBankNotifications,
     driveSyncInfo.fileId,
     handleWorkspaceAuthError,
   ]);
@@ -890,6 +1127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         budgetLimits,
         draftNotes,
         dashboardWidgets,
+        pendingBankNotifications,
       };
 
       const result = await saveToDrive(token, payload, driveSyncInfo.fileId);
@@ -942,6 +1180,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (sanitized.budgetLimits) setBudgetLimits(sanitized.budgetLimits);
         if (sanitized.draftNotes) setDraftNotes(sanitized.draftNotes);
         if (sanitized.dashboardWidgets) setDashboardWidgets(sanitized.dashboardWidgets);
+        if (sanitized.pendingBankNotifications) {
+          setPendingBankNotifications(sanitized.pendingBankNotifications);
+        }
         if (sanitized.userName) setUserNameState(sanitized.userName);
         if (sanitized.onboardingCompleted || sanitized.userName) {
           setOnboardingCompleted(true);
@@ -1165,6 +1406,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     triggerAutoSync();
   };
 
+  // Bank Notification Queue actions
+  const enqueueParsedBankText = (
+    rawText: string,
+    bankName?: string
+  ): PendingBankNotification | null => {
+    const parsed = parseBankNotificationText({
+      rawText,
+      bankName,
+      source: 'manual',
+      allowAmbiguous: true,
+    });
+    if (!parsed) return null;
+
+    const item: PendingBankNotification = {
+      ...parsed,
+      id: `bn-manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    };
+    hapticImpactLight();
+    setPendingBankNotifications((prev) => [item, ...prev]);
+    return item;
+  };
+
+  const approvePendingBankNotification = (
+    id: string,
+    overrides?: Partial<Omit<Transaction, 'id'>>
+  ) => {
+    const target = pendingBankNotifications.find((item) => item.id === id);
+    if (!target) return;
+
+    const newTx: Transaction = {
+      id: 'tx-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      type: overrides?.type ?? target.type,
+      title: overrides?.title ?? target.title,
+      amount: overrides?.amount ?? target.amount,
+      category: overrides?.category ?? target.category,
+      date: overrides?.date ?? target.date,
+      paymentMethod: overrides?.paymentMethod ?? target.paymentMethod,
+      notes: overrides?.notes ?? `Origem: ${target.bankName}`,
+      recurring: overrides?.recurring ?? false,
+    };
+
+    hapticSuccess();
+    setTransactions((prev) => [newTx, ...prev]);
+    setPendingBankNotifications((prev) => prev.filter((item) => item.id !== id));
+    triggerAutoSync();
+  };
+
+  const approveAllPendingBankNotifications = () => {
+    if (pendingBankNotifications.length === 0) return;
+
+    const nowBase = Date.now();
+    const batch: Transaction[] = pendingBankNotifications.map((item, idx) => ({
+      id: `tx-${nowBase}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+      type: item.type,
+      title: item.title,
+      amount: item.amount,
+      category: item.category,
+      date: item.date,
+      paymentMethod: item.paymentMethod,
+      notes: `Origem: ${item.bankName}`,
+      recurring: false,
+    }));
+
+    hapticSuccess();
+    setTransactions((prev) => [...batch, ...prev]);
+    setPendingBankNotifications([]);
+    triggerAutoSync();
+  };
+
+  const dismissPendingBankNotification = (id: string) => {
+    hapticImpactLight();
+    setPendingBankNotifications((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const clearPendingBankNotifications = () => {
+    hapticWarning();
+    setPendingBankNotifications([]);
+  };
+
   // Drafts / Rascunhos actions
   const addDraftNote = (noteData: Omit<DraftNote, 'id' | 'updatedAt'>) => {
     const newNote: DraftNote = {
@@ -1308,6 +1628,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       budgetLimits,
       draftNotes,
       dashboardWidgets,
+      pendingBankNotifications,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1329,6 +1650,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (sanitized.budgetLimits) setBudgetLimits(sanitized.budgetLimits);
       if (sanitized.draftNotes) setDraftNotes(sanitized.draftNotes);
       if (sanitized.dashboardWidgets) setDashboardWidgets(sanitized.dashboardWidgets);
+      if (sanitized.pendingBankNotifications) {
+        setPendingBankNotifications(sanitized.pendingBankNotifications);
+      }
       if (sanitized.userName) setUserNameState(sanitized.userName);
       if (sanitized.onboardingCompleted || sanitized.userName) {
         setOnboardingCompleted(true);
@@ -1404,6 +1728,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateGoal,
         deleteGoal,
         updateBudgetLimit,
+        hideValues,
+        toggleHideValues,
+        formatMoney,
+        pendingBankNotifications,
+        bankListenerSupported,
+        bankListenerPermission,
+        refreshBankListenerPermission,
+        openBankListenerSettings,
+        enqueueParsedBankText,
+        approvePendingBankNotification,
+        approveAllPendingBankNotifications,
+        dismissPendingBankNotification,
+        clearPendingBankNotifications,
         addDraftNote,
         updateDraftNote,
         deleteDraftNote,

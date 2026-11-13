@@ -7,11 +7,15 @@ import {
   CloudOff,
   Cpu,
   Download,
+  Eye,
+  EyeOff,
   LogOut,
   Moon,
   Package,
   RefreshCw,
+  ShieldCheck,
   Sliders,
+  Smartphone,
   Sparkles,
   Sun,
   Upload,
@@ -55,6 +59,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     importBackupJson,
     notificationPermission,
     confirmDestructiveAction,
+    hideValues,
+    toggleHideValues,
+    bankListenerSupported,
+    bankListenerPermission,
+    refreshBankListenerPermission,
+    openBankListenerSettings,
   } = useApp();
 
   // Profile name editor
@@ -388,6 +398,93 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
               Ativo
             </span>
+          </div>
+        </div>
+
+        {/* Privacy & Bank Capture Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          {/* Privacy Mode */}
+          <div className="p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                {hideValues ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </div>
+              <div>
+                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 block">
+                  Modo Privacidade
+                </span>
+                <span className="text-[11px] text-zinc-500">
+                  {hideValues ? 'Valores ocultos ao abrir' : 'Valores visíveis'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={toggleHideValues}
+              className="px-3 py-1.5 min-h-[36px] rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shrink-0"
+            >
+              {hideValues ? 'Mostrar' : 'Ocultar'}
+            </button>
+          </div>
+
+          {/* Bank Notification Capture */}
+          <div className="p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-3">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  bankListenerSupported && bankListenerPermission
+                    ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'
+                }`}
+              >
+                {bankListenerSupported && bankListenerPermission ? (
+                  <ShieldCheck className="w-4 h-4" />
+                ) : (
+                  <Smartphone className="w-4 h-4" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                    Leitura Automática de Bancos
+                  </span>
+                  {bankListenerSupported && (
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        bankListenerPermission
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                      }`}
+                    >
+                      {bankListenerPermission ? 'Ativo' : 'Inativo'}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block mt-0.5">
+                  {bankListenerSupported
+                    ? 'Captura avisos de bancos do Brasil e envia para revisão em Finanças'
+                    : 'Captura automática no app Android; na Web use Colar aviso / SMS em Finanças'}
+                </span>
+              </div>
+            </div>
+
+            {bankListenerSupported && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => openBankListenerSettings()}
+                  className="px-3 py-1.5 min-h-[36px] rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  Configurar Acesso
+                </button>
+                <button
+                  onClick={() => refreshBankListenerPermission()}
+                  title="Verificar permissão"
+                  className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

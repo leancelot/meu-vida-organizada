@@ -34,7 +34,30 @@ export async function scanReceiptWithAI(file: File): Promise<ParsedReceiptData> 
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Erro ${res.status}: Não foi possível ler a nota fiscal.`);
+    const rawMsg = typeof errorData?.error === 'string' ? errorData.error : '';
+
+    if (
+      res.status === 503 ||
+      rawMsg.includes('"code":503') ||
+      rawMsg.includes('UNAVAILABLE') ||
+      rawMsg.toLowerCase().includes('high demand')
+    ) {
+      throw new Error(
+        'O serviço de leitura por IA está com alta demanda no momento. Tente novamente em alguns segundos.'
+      );
+    }
+
+    if (res.status === 429 || rawMsg.includes('"code":429') || rawMsg.includes('RESOURCE_EXHAUSTED')) {
+      throw new Error(
+        'Limite temporário de leituras atingido. Aguarde alguns instantes e tente novamente.'
+      );
+    }
+
+    if (rawMsg && !rawMsg.trim().startsWith('{')) {
+      throw new Error(rawMsg);
+    }
+
+    throw new Error('Não foi possível ler a nota fiscal agora. Tente novamente ou preencha manualmente.');
   }
 
   const data = await res.json();
