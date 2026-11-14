@@ -7,8 +7,7 @@ import {
   CloudOff,
   Cpu,
   Download,
-  Eye,
-  EyeOff,
+  Fingerprint,
   LogOut,
   Moon,
   Package,
@@ -22,7 +21,12 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { hapticSuccess } from '../../services/hapticsService';
+import {
+  authenticateFinanceAccess,
+  checkBiometricAvailability,
+  isBiometricSupportedOnPlatform,
+} from '../../services/biometricLockBridge';
+import { hapticImpactLight, hapticSuccess } from '../../services/hapticsService';
 import {
   checkForGitHubUpdates,
   CURRENT_APP_VERSION,
@@ -59,13 +63,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     importBackupJson,
     notificationPermission,
     confirmDestructiveAction,
-    hideValues,
-    toggleHideValues,
     bankListenerSupported,
     bankListenerPermission,
     refreshBankListenerPermission,
     openBankListenerSettings,
+    financeLockEnabled,
+    setFinanceLockEnabled,
   } = useApp();
+
+  // Biometric lock state
+  const biometricPlatformSupported = isBiometricSupportedOnPlatform();
+  const [biometricAvailable, setBiometricAvailable] = useState<boolean>(false);
+  const [biometricMessage, setBiometricMessage] = useState<string | null>(null);
+  const [isCheckingBiometric, setIsCheckingBiometric] = useState<boolean>(false);
 
   // Profile name editor
   const [nameDraft, setNameDraft] = useState(userName || '');
@@ -93,7 +103,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     if (config.autoCheck && !config.lastResult) {
       handleCheckUpdates();
     }
-  }, []);
+
+    if (biometricPlatformSupported) {
+      checkBiometricAvailability()
+        .then((res) => setBiometricAvailable(res.available))
+        .catch(() => setBiometricAvailable(false));
+    }
+  }, [biometricPlatformSupported]);
+
+  const handleToggleFinanceLock = async () => {
+    setBiometricMessage(null);
+    if (!biometricPlatformSupported) {
+      setBiometricMessage('Disponível apenas no aplicativo Android instalado (APK).');
+      return;
+    }
+
+    if (financeLockEnabled) {
+      hapticImpactLight();
+      setFinanceLockEnabled(false);
+      setBiometricMessage('Proteção biométrica desativada.');
+      return;
+    }
+
+    setIsCheckingBiometric(true);
+    try {
+      const avail = await checkBiometricAvailability();
+      setBiometricAvailable(avail.available);
+      if (!avail.available) {
+        setBiometricMessage(
+          'Configure uma digital, rosto ou PIN de bloqueio nas configurações do Android primeiro.'
+        );
+        return;
+      }
+
+      const authRes = await authenticateFinanceAccess(
+        'Ativar Proteção em Finanças',
+        'Confirme sua identidade para proteger seus dados financeiros'
+      );
+      if (authRes.authenticated) {
+        hapticSuccess();
+        setFinanceLockEnabled(true);
+        setBiometricMessage('Proteção ativada para a aba Finanças.');
+      } else {
+        setBiometricMessage(authRes.message || 'Autenticação cancelada.');
+      }
+    } finally {
+      setIsCheckingBiometric(false);
+    }
+  };
 
   const handleCheckUpdates = async () => {
     setIsChecking(true);
@@ -153,7 +210,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#DC7B62] to-[#BE6272] dark:from-[#F2A68E] dark:to-[#E69BA7] flex items-center justify-center text-white dark:text-[#24120E] shadow-md shadow-indigo-500/20">
               <Sliders className="w-7 h-7" />
             </div>
             <div>
@@ -175,7 +232,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               onClick={handleCheckUpdates}
               disabled={isChecking}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md transition-all cursor-pointer disabled:opacity-60"
+              className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md transition-all cursor-pointer disabled:opacity-60 whitespace-nowrap"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
               <span>{isChecking ? 'Verificando...' : 'Buscar Atualizações'}</span>
@@ -205,12 +262,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             value={nameDraft}
             onChange={(e) => setNameDraft(e.target.value)}
             placeholder="Digite seu nome"
-            className="flex-1 min-h-[44px] px-4 py-2 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            className="flex-1 h-10 px-4 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
           />
           <button
             type="submit"
             disabled={!nameDraft.trim()}
-            className="min-h-[44px] px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold transition-colors cursor-pointer shrink-0"
+            className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap"
           >
             {nameSavedFeedback ? 'Nome salvo!' : 'Salvar Nome'}
           </button>
@@ -236,7 +293,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           <button
             onClick={openSyncModal}
-            className="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-900"
+            className="h-9 px-3.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-900 whitespace-nowrap shrink-0"
           >
             Abrir Central
           </button>
@@ -280,7 +337,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 onClick={handleSyncNow}
                 disabled={isSyncing}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                 <span>{isSyncing ? 'Salvando...' : 'Salvar no Drive'}</span>
@@ -288,7 +345,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 onClick={signOut}
                 title="Desconectar conta Google"
-                className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-rose-500 transition-colors cursor-pointer"
+                className="w-9 h-9 flex items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-rose-500 transition-colors cursor-pointer shrink-0"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -350,16 +407,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <button
               onClick={toggleTheme}
-              className="px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+              className="h-9 px-3.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors whitespace-nowrap shrink-0"
             >
               Alternar
             </button>
           </div>
 
           {/* Notifications setting */}
-          <div className="p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between">
+          <div className="p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center shrink-0">
                 <Bell className="w-4 h-4" />
               </div>
               <div>
@@ -374,7 +431,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <button
               onClick={openNotificationCenter}
-              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer transition-colors"
+              className="h-9 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
             >
               Ver Alertas
             </button>
@@ -401,33 +458,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* Privacy & Bank Capture Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-          {/* Privacy Mode */}
-          <div className="p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                {hideValues ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </div>
-              <div>
-                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 block">
-                  Modo Privacidade
-                </span>
-                <span className="text-[11px] text-zinc-500">
-                  {hideValues ? 'Valores ocultos ao abrir' : 'Valores visíveis'}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={toggleHideValues}
-              className="px-3 py-1.5 min-h-[36px] rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shrink-0"
-            >
-              {hideValues ? 'Mostrar' : 'Ocultar'}
-            </button>
-          </div>
-
-          {/* Bank Notification Capture */}
+        {/* Bank Notification Capture */}
+        <div className="pt-1">
           <div className="p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start sm:items-center gap-3">
               <div
@@ -472,19 +504,81 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => openBankListenerSettings()}
-                  className="px-3 py-1.5 min-h-[36px] rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer transition-colors"
+                  className="pressable h-9 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer whitespace-nowrap"
                 >
                   Configurar Acesso
                 </button>
                 <button
                   onClick={() => refreshBankListenerPermission()}
                   title="Verificar permissão"
-                  className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer transition-colors"
+                  className="pressable w-9 h-9 flex items-center justify-center rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 cursor-pointer shrink-0"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Optional Biometric Lock for Finance Tab */}
+          <div className="mt-4 p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-3">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  financeLockEnabled
+                    ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'
+                }`}
+              >
+                <Fingerprint className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                    Biometria para Abrir Finanças
+                  </span>
+                  {biometricPlatformSupported && (
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        financeLockEnabled
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700'
+                      }`}
+                    >
+                      {financeLockEnabled ? 'Ativo' : 'Opcional'}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block mt-0.5">
+                  {!biometricPlatformSupported
+                    ? 'Solicita digital, rosto ou PIN ao abrir Finanças no app Android instalado.'
+                    : biometricAvailable
+                    ? 'Exige digital, rosto ou senha do aparelho ao acessar saldos e lançamentos.'
+                    : 'Ative digital ou PIN de tela no Android para habilitar esta proteção.'}
+                </span>
+                {biometricMessage && (
+                  <span className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 block mt-1">
+                    {biometricMessage}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleToggleFinanceLock}
+              disabled={isCheckingBiometric}
+              className={`pressable h-9 px-3.5 rounded-xl text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-60 ${
+                financeLockEnabled
+                  ? 'border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              }`}
+            >
+              {isCheckingBiometric
+                ? 'Validando...'
+                : financeLockEnabled
+                ? 'Desativar'
+                : 'Ativar Proteção'}
+            </button>
           </div>
         </div>
       </div>
@@ -541,17 +635,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="flex flex-col sm:flex-row gap-3 pt-1">
           <button
             onClick={exportBackupJson}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
           >
-            <Download className="w-4 h-4 text-indigo-600" />
+            <Download className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>Fazer Download do Backup (JSON)</span>
           </button>
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
           >
-            <Upload className="w-4 h-4 text-indigo-600" />
+            <Upload className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>Restaurar de Arquivo JSON</span>
           </button>
           <input
@@ -606,7 +700,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Update Status Banner */}
         {updateResult?.hasUpdate ? (
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 border border-indigo-200 dark:border-indigo-800/80 space-y-3">
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-500/12 via-violet-500/10 to-amber-500/10 border border-indigo-200 dark:border-indigo-800/80 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
                 <Sparkles className="w-4 h-4 text-indigo-600" />

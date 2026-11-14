@@ -18,8 +18,8 @@ export async function syncNativeSystemBars(
   if (!Capacitor.isNativePlatform()) return;
 
   const isDark = theme === 'dark';
-  const backgroundColor = isDark ? '#09090b' : '#fafafa';
-  const barColor = isOnboarding ? backgroundColor : isDark ? '#18181b' : '#ffffff';
+  const backgroundColor = isDark ? '#141110' : '#FAF6F1';
+  const barColor = isOnboarding ? backgroundColor : isDark ? '#1C1715' : '#FFFFFF';
 
   try {
     await SystemBars.setStyle({

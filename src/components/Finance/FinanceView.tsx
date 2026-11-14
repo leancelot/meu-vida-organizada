@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { hapticImpactLight, hapticSelection } from '../../services/hapticsService';
 import { parseBankNotificationText } from '../../services/bankNotificationParser';
 import { FinanceCategory, PendingBankNotification, Transaction, TransactionType } from '../../types';
 import { ReceiptScannerModal } from './ReceiptScannerModal';
@@ -65,7 +66,15 @@ const PAYMENT_METHOD_LABELS: Record<NonNullable<Transaction['paymentMethod']>, s
   transferencia: 'Transferência',
 };
 
-export const FinanceView: React.FC = () => {
+interface FinanceViewProps {
+  quickOpenAction?: 'new-transaction' | 'scan-receipt' | null;
+  onConsumeQuickOpen?: () => void;
+}
+
+export const FinanceView: React.FC<FinanceViewProps> = ({
+  quickOpenAction,
+  onConsumeQuickOpen,
+}) => {
   const {
     transactions,
     addTransaction,
@@ -133,11 +142,32 @@ export const FinanceView: React.FC = () => {
   const [budgetDrafts, setBudgetDrafts] = useState<Record<string, string>>({});
   const [csvFeedback, setCsvFeedback] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!quickOpenAction) return;
+    if (quickOpenAction === 'new-transaction') {
+      setEditingPendingBankId(null);
+      setTxType('despesa');
+      setTxTitle('');
+      setTxAmount('');
+      setTxCategory('alimentacao');
+      setTxDate(new Date().toISOString().split('T')[0]);
+      setTxPaymentMethod('pix');
+      setTxNotes('');
+      setTxRecurring(false);
+      setIsAddModalOpen(true);
+    } else if (quickOpenAction === 'scan-receipt') {
+      setIsScannerOpen(true);
+    }
+    onConsumeQuickOpen?.();
+  }, [quickOpenAction, onConsumeQuickOpen]);
+
   const prevMonth = () => {
+    hapticSelection();
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
 
   const nextMonth = () => {
+    hapticSelection();
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
@@ -448,7 +478,7 @@ export const FinanceView: React.FC = () => {
                 title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
                 aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
                 aria-pressed={hideValues}
-                className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+                className={`pressable w-9 h-9 flex items-center justify-center rounded-xl border cursor-pointer shrink-0 ${
                   hideValues
                     ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
@@ -457,18 +487,18 @@ export const FinanceView: React.FC = () => {
                 {hideValues ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
 
-              <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1">
+              <div className="flex items-center h-9 bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1">
                 <button
                   onClick={prevMonth}
                   title="Mês anterior"
-                  className="p-1.5 min-h-[34px] min-w-[34px] flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                  className="pressable w-8 h-7 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={nextMonth}
                   title="Próximo mês"
-                  className="p-1.5 min-h-[34px] min-w-[34px] flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                  className="pressable w-8 h-7 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -477,23 +507,23 @@ export const FinanceView: React.FC = () => {
           </div>
 
           {/* Action Buttons Row */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:flex-wrap">
             {/* Desktop Month Stepper */}
-            <div className="hidden sm:flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1">
+            <div className="hidden sm:flex items-center h-10 bg-zinc-100 dark:bg-zinc-800 rounded-xl p-1">
               <button
                 onClick={prevMonth}
                 title="Mês anterior"
-                className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="px-3 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              <span className="px-3 text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                 {currentDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
               </span>
               <button
                 onClick={nextMonth}
                 title="Próximo mês"
-                className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 transition-colors cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -505,7 +535,7 @@ export const FinanceView: React.FC = () => {
               title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
               aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
               aria-pressed={hideValues}
-              className={`hidden sm:flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+              className={`pressable hidden sm:flex items-center gap-1.5 px-3 h-10 rounded-xl border text-xs font-semibold cursor-pointer ${
                 hideValues
                   ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
                   : 'border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -515,39 +545,52 @@ export const FinanceView: React.FC = () => {
               <span className="hidden md:inline">{hideValues ? 'Mostrar' : 'Ocultar'}</span>
             </button>
 
-            <button
-              onClick={exportToCSV}
-              title="Exportar extrato em CSV para Excel ou Google Sheets"
-              className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-zinc-500" />
-              <span className="hidden sm:inline">Exportar CSV</span>
-            </button>
+            {/* Secondary Actions: 2-column grid on mobile, inline on desktop */}
+            <div className="grid grid-cols-2 sm:flex items-center gap-2">
+              <button
+                onClick={exportToCSV}
+                title="Exportar extrato em CSV para Excel ou Google Sheets"
+                className="pressable flex items-center justify-center gap-1.5 px-3 h-9 sm:h-10 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold cursor-pointer whitespace-nowrap"
+              >
+                <Download className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span>Exportar CSV</span>
+              </button>
 
-            <button
-              onClick={openBudgetModal}
-              className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-              title="Ajustar limites de orçamento"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
+              <button
+                onClick={openBudgetModal}
+                className="pressable flex items-center justify-center gap-1.5 px-3 h-9 sm:h-10 sm:w-10 sm:px-0 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold cursor-pointer whitespace-nowrap"
+                title="Ajustar limites de orçamento"
+              >
+                <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                <span className="sm:hidden">Orçamento</span>
+              </button>
+            </div>
 
-            <button
-              onClick={() => setIsScannerOpen(true)}
-              title="Escanear Nota Fiscal ou Cupom com Inteligência Artificial"
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] sm:px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-              <span>Ler Nota</span>
-            </button>
+            {/* Primary CTAs: symmetric 2-column grid on mobile */}
+            <div className="grid grid-cols-2 sm:flex items-center gap-2">
+              <button
+                onClick={() => {
+                  hapticImpactLight();
+                  setIsScannerOpen(true);
+                }}
+                title="Escanear Nota Fiscal ou Cupom com Inteligência Artificial"
+                className="pressable flex items-center justify-center gap-1.5 px-3.5 h-10 rounded-xl bg-gradient-to-r from-[#B6543C] to-[#A64B5E] hover:from-[#9C432E] hover:to-[#8C3C4D] text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                <span>Ler Nota</span>
+              </button>
 
-            <button
-              onClick={openNewTransactionModal}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition-all cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Plus className="w-4 h-4 shrink-0" />
-              <span>Nova</span>
-            </button>
+              <button
+                onClick={() => {
+                  hapticImpactLight();
+                  openNewTransactionModal();
+                }}
+                className="pressable flex items-center justify-center gap-1.5 px-4 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-600/20 cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                <span>Nova</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -555,13 +598,16 @@ export const FinanceView: React.FC = () => {
         <div
           role="tablist"
           aria-label="Seções de Finanças"
-          className="grid grid-cols-3 gap-1.5 bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-2xl border border-zinc-200/70 dark:border-zinc-800"
+          className="grid grid-cols-3 gap-1 bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded-2xl border border-zinc-200/70 dark:border-zinc-800"
         >
           <button
             role="tab"
             aria-selected={activeSubTab === 'resumo'}
-            onClick={() => setActiveSubTab('resumo')}
-            className={`min-h-[44px] px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center ${
+            onClick={() => {
+              hapticSelection();
+              setActiveSubTab('resumo');
+            }}
+            className={`pressable h-10 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center ${
               activeSubTab === 'resumo'
                 ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -573,8 +619,11 @@ export const FinanceView: React.FC = () => {
           <button
             role="tab"
             aria-selected={activeSubTab === 'lancamentos'}
-            onClick={() => setActiveSubTab('lancamentos')}
-            className={`min-h-[44px] px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5 ${
+            onClick={() => {
+              hapticSelection();
+              setActiveSubTab('lancamentos');
+            }}
+            className={`pressable h-10 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center gap-1 ${
               activeSubTab === 'lancamentos'
                 ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -582,7 +631,7 @@ export const FinanceView: React.FC = () => {
           >
             <span>Lançamentos</span>
             {pendingBankNotifications.length > 0 && (
-              <span className="inline-flex items-center justify-center px-1.5 min-w-[20px] h-5 rounded-md bg-indigo-600 text-white text-[11px] font-bold tabular-nums">
+              <span className="inline-flex items-center justify-center px-1.5 min-w-[18px] h-[18px] rounded-md bg-indigo-600 text-white text-[10px] font-bold tabular-nums">
                 {pendingBankNotifications.length}
               </span>
             )}
@@ -591,8 +640,11 @@ export const FinanceView: React.FC = () => {
           <button
             role="tab"
             aria-selected={activeSubTab === 'metas'}
-            onClick={() => setActiveSubTab('metas')}
-            className={`min-h-[44px] px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center ${
+            onClick={() => {
+              hapticSelection();
+              setActiveSubTab('metas');
+            }}
+            className={`pressable h-10 px-2 sm:px-3 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center ${
               activeSubTab === 'metas'
                 ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'

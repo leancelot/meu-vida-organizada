@@ -4,8 +4,6 @@ import {
   CloudAlert,
   CloudCheck,
   CloudOff,
-  Eye,
-  EyeOff,
   LogOut,
   Moon,
   RefreshCw,
@@ -13,6 +11,7 @@ import {
   Sun,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { hapticImpactLight, hapticSelection } from '../services/hapticsService';
 
 interface HeaderProps {
   currentTab: string;
@@ -37,8 +36,6 @@ export const Header: React.FC<HeaderProps> = ({
     signOut,
     driveSyncInfo,
     notificationsList,
-    hideValues,
-    toggleHideValues,
   } = useApp();
 
   const todayStr = new Intl.DateTimeFormat('pt-BR', {
@@ -52,15 +49,15 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 pt-[max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px))] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-15 gap-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-15 gap-2 sm:gap-6">
           {/* Zone 1: Brand & Date */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-[#DC7B62] to-[#BE6272] dark:from-[#F2A68E] dark:to-[#E69BA7] flex items-center justify-center text-white dark:text-[#24120E] shadow-xs shrink-0">
               <Sparkles className="w-4 h-4" />
             </div>
-            <div>
-              <span className="font-bold text-base sm:text-lg text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap block leading-tight">
+            <div className="min-w-0">
+              <span className="font-bold text-sm sm:text-lg text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap block leading-tight truncate">
                 VidaOrganizada
               </span>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400 capitalize hidden sm:block">
@@ -72,8 +69,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Zone 2: 4 Unified Desktop Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
             <button
-              onClick={() => setCurrentTab('dashboard')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              onClick={() => {
+                hapticSelection();
+                setCurrentTab('dashboard');
+              }}
+              className={`pressable px-3.5 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap shrink-0 ${
                 currentTab === 'dashboard'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -82,8 +82,11 @@ export const Header: React.FC<HeaderProps> = ({
               Início
             </button>
             <button
-              onClick={() => setCurrentTab('agenda')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              onClick={() => {
+                hapticSelection();
+                setCurrentTab('agenda');
+              }}
+              className={`pressable px-3.5 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap shrink-0 ${
                 currentTab === 'agenda'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -92,8 +95,11 @@ export const Header: React.FC<HeaderProps> = ({
               Agenda
             </button>
             <button
-              onClick={() => setCurrentTab('financas')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              onClick={() => {
+                hapticSelection();
+                setCurrentTab('financas');
+              }}
+              className={`pressable px-3.5 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap shrink-0 ${
                 currentTab === 'financas'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -102,8 +108,11 @@ export const Header: React.FC<HeaderProps> = ({
               Finanças
             </button>
             <button
-              onClick={() => setCurrentTab('configuracoes')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              onClick={() => {
+                hapticSelection();
+                setCurrentTab('configuracoes');
+              }}
+              className={`pressable px-3.5 py-1.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap shrink-0 ${
                 currentTab === 'configuracoes'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -114,48 +123,35 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Right actions: Theme Toggle, Notifications, Cloud Sync, Google Auth */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Privacy Mode Toggle (Ocultar Valores) */}
-            <button
-              onClick={toggleHideValues}
-              title={hideValues ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'}
-              aria-label={hideValues ? 'Mostrar valores financeiros' : 'Ocultar valores financeiros'}
-              aria-pressed={hideValues}
-              className={`p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
-                hideValues
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-              }`}
-            >
-              {hideValues ? (
-                <EyeOff className="w-4 h-4" />
-              ) : (
-                <Eye className="w-4 h-4" />
-              )}
-            </button>
-
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Theme Toggle (Dark / Light) */}
             <button
-              onClick={toggleTheme}
+              onClick={() => {
+                hapticImpactLight();
+                toggleTheme();
+              }}
               title={theme === 'dark' ? 'Mudar para tema Claro' : 'Mudar para tema Escuro'}
-              className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              className="pressable w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer shrink-0 group"
             >
               {theme === 'dark' ? (
-                <Sun className="w-4 h-4 text-amber-400" />
+                <Sun className="w-4 h-4 text-amber-400 transition-transform duration-200 group-hover:rotate-45" />
               ) : (
-                <Moon className="w-4 h-4 text-zinc-600" />
+                <Moon className="w-4 h-4 text-zinc-600 transition-transform duration-200 group-hover:-rotate-12" />
               )}
             </button>
 
             {/* Notification Center Trigger */}
             <button
-              onClick={openNotificationCenter}
+              onClick={() => {
+                hapticSelection();
+                openNotificationCenter();
+              }}
               title="Central de Notificações & Lembretes"
-              className="relative p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              className="pressable relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer shrink-0"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold font-mono tabular-nums w-4 h-4 rounded-full flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
@@ -200,20 +196,20 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Google Account Profile or Sign In Button */}
             {user ? (
-              <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 rounded-xl p-1 sm:pr-3">
+              <div className="flex items-center gap-1 sm:gap-2 h-9 sm:h-10 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/80 rounded-xl px-1 sm:pr-2.5 shrink-0">
                 <button
                   onClick={openSyncModal}
                   title="Ver status da conta"
-                  className="cursor-pointer"
+                  className="cursor-pointer flex items-center justify-center"
                 >
                   {user.photoURL ? (
                     <img
                       src={user.photoURL}
                       alt={userName || user.displayName || 'Usuário'}
-                      className="w-8 h-8 rounded-lg object-cover"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 text-white font-semibold text-xs flex items-center justify-center">
                       {(userName || user.displayName || user.email || 'U')[0].toUpperCase()}
                     </div>
                   )}
@@ -229,16 +225,19 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={signOut}
                   title="Sair da conta Google"
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
               <button
-                onClick={signInWithGoogle}
+                onClick={() => {
+                  hapticImpactLight();
+                  signInWithGoogle();
+                }}
                 disabled={isAuthenticating}
-                className="gsi-material-button inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-200 text-xs font-medium shadow-xs transition-colors cursor-pointer shrink-0"
+                className="pressable gsi-material-button inline-flex items-center justify-center gap-1.5 h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-200 text-xs font-medium shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
               >
                 <svg
                   className="w-4 h-4 shrink-0"

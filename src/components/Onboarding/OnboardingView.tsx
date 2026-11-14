@@ -34,7 +34,7 @@ export const OnboardingView: React.FC = () => {
         {/* Marca & Boas-vindas */}
         <header className="space-y-3">
           <div className="flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#DC7B62] to-[#BE6272] dark:from-[#F2A68E] dark:to-[#E69BA7] text-white dark:text-[#24120E] flex items-center justify-center shadow-xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <span className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-100">

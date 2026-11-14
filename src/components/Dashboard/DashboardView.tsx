@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
   Calendar,
+  CalendarClock,
+  Check,
   CheckCircle2,
   Circle,
   Clock,
@@ -22,6 +24,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
   const {
     tasks,
     toggleTaskCompletion,
+    snoozeTaskToTomorrow,
     addTask,
     calendarEvents,
     user,
@@ -98,7 +101,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
   }, [userName, user?.displayName]);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300 pb-12">
+    <div className="max-w-2xl mx-auto space-y-6 pb-12">
       {/* 1. Header Minimalista */}
       <header className="pt-2 sm:pt-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-zinc-200/70 dark:border-zinc-800/80 pb-5">
         <div className="space-y-1">
@@ -197,18 +200,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
       {/* 4. Lista do Foco do Dia (Tarefas de Hoje) */}
       <section className="space-y-3">
         {/* Cabeçalho da Lista & Filtros Rápidos */}
-        <div className="flex items-center justify-between px-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-0.5">
           <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             Tarefas de Hoje
           </h2>
 
-          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-0.5 rounded-xl text-[11px] font-medium">
+          <div className="grid grid-cols-3 sm:inline-flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/70 p-1 rounded-xl text-[11px] font-medium">
             <button
               onClick={() => {
                 hapticSelection();
                 setFilterMode('all');
               }}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+              className={`pressable h-8 sm:h-7 px-2.5 rounded-lg cursor-pointer whitespace-nowrap flex items-center justify-center ${
                 filterMode === 'all'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs font-semibold'
                   : 'text-zinc-500 dark:text-zinc-400'
@@ -221,7 +224,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
                 hapticSelection();
                 setFilterMode('pending');
               }}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+              className={`pressable h-8 sm:h-7 px-2.5 rounded-lg cursor-pointer whitespace-nowrap flex items-center justify-center ${
                 filterMode === 'pending'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs font-semibold'
                   : 'text-zinc-500 dark:text-zinc-400'
@@ -234,7 +237,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
                 hapticSelection();
                 setFilterMode('completed');
               }}
-              className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+              className={`pressable h-8 sm:h-7 px-2.5 rounded-lg cursor-pointer whitespace-nowrap flex items-center justify-center ${
                 filterMode === 'completed'
                   ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs font-semibold'
                   : 'text-zinc-500 dark:text-zinc-400'
@@ -252,12 +255,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
             value={quickTaskTitle}
             onChange={(e) => setQuickTaskTitle(e.target.value)}
             placeholder="Adicionar tarefa rápida para hoje..."
-            className="w-full pl-4 pr-11 py-3 text-xs sm:text-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 shadow-xs transition-all"
+            className="w-full h-11 pl-4 pr-12 text-xs sm:text-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 shadow-xs transition-all"
           />
           <button
             type="submit"
             disabled={!quickTaskTitle.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all disabled:opacity-30 disabled:hover:bg-indigo-600 cursor-pointer shadow-xs"
+            className="pressable absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center disabled:opacity-30 disabled:hover:bg-indigo-600 cursor-pointer shadow-xs"
             title="Adicionar"
           >
             <Plus className="w-4 h-4" />
@@ -285,26 +288,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
               <div
                 key={task.id}
                 onClick={() => toggleTaskCompletion(task.id)}
-                className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer select-none ${
+                className={`pressable p-3.5 rounded-2xl border flex items-center justify-between gap-2.5 cursor-pointer select-none ${
                   task.completed
-                    ? 'bg-zinc-50/70 dark:bg-zinc-900/40 border-zinc-100 dark:border-zinc-850 opacity-60'
+                    ? 'bg-zinc-50/70 dark:bg-zinc-900/40 border-zinc-100 dark:border-zinc-850 opacity-65'
                     : 'bg-white dark:bg-zinc-900 border-zinc-200/70 dark:border-zinc-800 hover:border-indigo-400 dark:hover:border-indigo-600 shadow-2xs'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     type="button"
-                    className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                    aria-label={task.completed ? 'Desmarcar tarefa' : 'Concluir tarefa'}
+                    className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
                       task.completed
-                        ? 'bg-emerald-600 text-white'
+                        ? 'bg-emerald-600 text-white animate-check-pop'
                         : 'border-2 border-zinc-300 dark:border-zinc-600 hover:border-indigo-500'
                     }`}
                   >
-                    {task.completed && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    {task.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                   </button>
                   <div className="min-w-0">
                     <span
-                      className={`text-xs sm:text-sm font-medium block truncate ${
+                      className={`text-xs sm:text-sm font-medium block truncate transition-colors ${
                         task.completed
                           ? 'line-through text-zinc-400 dark:text-zinc-500'
                           : 'text-zinc-800 dark:text-zinc-100'
@@ -320,12 +324,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
                   </div>
                 </div>
 
-                {task.dueTime && (
-                  <span className="text-[11px] font-mono text-zinc-400 flex items-center gap-1 shrink-0">
-                    <Clock className="w-3 h-3 text-zinc-400" />
-                    {task.dueTime}
-                  </span>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {task.dueTime && (
+                    <span className="text-[11px] font-mono tabular-nums text-zinc-400 flex items-center gap-1 shrink-0">
+                      <Clock className="w-3 h-3 text-zinc-400" />
+                      {task.dueTime}
+                    </span>
+                  )}
+                  {!task.completed && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        snoozeTaskToTomorrow(task.id);
+                      }}
+                      title="Adiar tarefa para amanhã"
+                      aria-label={`Adiar ${task.title} para amanhã`}
+                      className="pressable h-8 px-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-zinc-600 dark:text-zinc-300 hover:text-indigo-700 dark:hover:text-indigo-300 border border-zinc-200/70 dark:border-zinc-700/70 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+                      <span>Amanhã</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -333,16 +354,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
       </section>
 
       {/* 5. Acessos Rápidos Discretos no Rodapé */}
-      <footer className="pt-4 border-t border-zinc-100 dark:border-zinc-850 flex flex-wrap items-center justify-center gap-3">
+      <footer className="pt-4 border-t border-zinc-100 dark:border-zinc-850 flex flex-wrap items-center justify-center gap-2">
         <button
-          onClick={() => setCurrentTab('agenda')}
-          className="text-xs font-medium text-zinc-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors cursor-pointer py-1.5 px-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          onClick={() => {
+            hapticSelection();
+            setCurrentTab('agenda');
+          }}
+          className="pressable h-10 px-3.5 rounded-xl text-xs font-medium text-zinc-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center"
         >
           Agenda e tarefas →
         </button>
         <button
-          onClick={() => setCurrentTab('financas')}
-          className="text-xs font-medium text-zinc-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400 transition-colors cursor-pointer py-1.5 px-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          onClick={() => {
+            hapticSelection();
+            setCurrentTab('financas');
+          }}
+          className="pressable h-10 px-3.5 rounded-xl text-xs font-medium text-zinc-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center"
         >
           Controle financeiro →
         </button>

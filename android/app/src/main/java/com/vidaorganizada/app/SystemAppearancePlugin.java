@@ -45,10 +45,10 @@ public class SystemAppearancePlugin extends Plugin {
         String resolvedTheme = isLight ? "light" : "dark";
         String resolvedBarColor = (barColor != null && !barColor.isEmpty())
             ? barColor
-            : (isLight ? "#ffffff" : "#18181b");
+            : (isLight ? "#FFFFFF" : "#1C1715");
         String resolvedBgColor = (backgroundColor != null && !backgroundColor.isEmpty())
             ? backgroundColor
-            : (isLight ? "#fafafa" : "#09090b");
+            : (isLight ? "#FAF6F1" : "#141110");
 
         saveThemePrefs(getContext(), resolvedTheme, resolvedBarColor, resolvedBgColor);
 
@@ -81,14 +81,14 @@ public class SystemAppearancePlugin extends Plugin {
     public static void reapplyLastTheme(AppCompatActivity activity, WebView webView) {
         if (activity == null) return;
         String theme = "dark";
-        String barColor = "#18181b";
-        String bgColor = "#09090b";
+        String barColor = "#1C1715";
+        String bgColor = "#141110";
         try {
             SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             theme = prefs.getString(KEY_THEME, "dark");
             boolean isLight = "light".equalsIgnoreCase(theme);
-            barColor = prefs.getString(KEY_BAR_COLOR, isLight ? "#ffffff" : "#18181b");
-            bgColor = prefs.getString(KEY_BG_COLOR, isLight ? "#fafafa" : "#09090b");
+            barColor = prefs.getString(KEY_BAR_COLOR, isLight ? "#FFFFFF" : "#1C1715");
+            bgColor = prefs.getString(KEY_BG_COLOR, isLight ? "#FAF6F1" : "#141110");
         } catch (Exception ignored) {
             // Keep defaults
         }
@@ -111,12 +111,12 @@ public class SystemAppearancePlugin extends Plugin {
         try {
             parsedBarColor = Color.parseColor(barHex);
         } catch (Exception e) {
-            parsedBarColor = Color.parseColor(isDark ? "#18181b" : "#ffffff");
+            parsedBarColor = Color.parseColor(isDark ? "#1C1715" : "#FFFFFF");
         }
         try {
             parsedBgColor = Color.parseColor(bgHex);
         } catch (Exception e) {
-            parsedBgColor = Color.parseColor(isDark ? "#09090b" : "#fafafa");
+            parsedBgColor = Color.parseColor(isDark ? "#141110" : "#FAF6F1");
         }
 
         Window window = activity.getWindow();

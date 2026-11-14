@@ -20,11 +20,11 @@ const config: CapacitorConfig = {
     StatusBar: {
       overlaysWebView: true,
       style: 'DARK',
-      backgroundColor: '#18181b',
+      backgroundColor: '#1C1715',
     },
     LocalNotifications: {
       smallIcon: 'ic_launcher',
-      iconColor: '#4f46e5',
+      iconColor: '#E28065',
     },
   },
 };

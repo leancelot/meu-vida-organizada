@@ -6,8 +6,20 @@
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
+const triggerWebVibration = (pattern: number | number[]) => {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    // ignore unsupported or blocked vibration calls
+  }
+};
+
 export const hapticImpactLight = async () => {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!Capacitor.isNativePlatform()) {
+    triggerWebVibration(8);
+    return;
+  }
   try {
     await Haptics.impact({ style: ImpactStyle.Light });
   } catch {
@@ -16,7 +28,10 @@ export const hapticImpactLight = async () => {
 };
 
 export const hapticImpactMedium = async () => {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!Capacitor.isNativePlatform()) {
+    triggerWebVibration(14);
+    return;
+  }
   try {
     await Haptics.impact({ style: ImpactStyle.Medium });
   } catch {
@@ -25,7 +40,10 @@ export const hapticImpactMedium = async () => {
 };
 
 export const hapticSuccess = async () => {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!Capacitor.isNativePlatform()) {
+    triggerWebVibration([10, 28, 12]);
+    return;
+  }
   try {
     await Haptics.notification({ type: NotificationType.Success });
   } catch {
@@ -34,7 +52,10 @@ export const hapticSuccess = async () => {
 };
 
 export const hapticWarning = async () => {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!Capacitor.isNativePlatform()) {
+    triggerWebVibration([16, 24, 16]);
+    return;
+  }
   try {
     await Haptics.notification({ type: NotificationType.Warning });
   } catch {
@@ -43,7 +64,10 @@ export const hapticWarning = async () => {
 };
 
 export const hapticSelection = async () => {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!Capacitor.isNativePlatform()) {
+    triggerWebVibration(6);
+    return;
+  }
   try {
     await Haptics.selectionStart();
     await Haptics.selectionEnd();

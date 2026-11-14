@@ -4,6 +4,97 @@
 @theme {
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Warm Sand & Cocoa Neutral Scale */
+  --color-zinc-50: #FAF6F1;
+  --color-zinc-100: #F4EDE4;
+  --color-zinc-200: #E7DBD0;
+  --color-zinc-300: #D6C6B8;
+  --color-zinc-400: #9E8E84;
+  --color-zinc-500: #75675F;
+  --color-zinc-600: #574B44;
+  --color-zinc-700: #3D342F;
+  --color-zinc-800: #29221F;
+  --color-zinc-850: #221C19;
+  --color-zinc-900: #1C1715;
+  --color-zinc-950: #141110;
+
+  /* Pastel Peach Primary Scale (replaces Indigo) */
+  --color-indigo-50: #FDF1EB;
+  --color-indigo-100: #FCE1D5;
+  --color-indigo-200: #F8C5B0;
+  --color-indigo-300: #F4B098;
+  --color-indigo-400: #F09D82;
+  --color-indigo-500: #E28065;
+  --color-indigo-600: #B6543C;
+  --color-indigo-700: #9C432E;
+  --color-indigo-800: #8B3F2D;
+  --color-indigo-900: #5C2B20;
+  --color-indigo-950: #331913;
+
+  /* Dusty Tea Rose Secondary Scale (replaces Violet & Purple) */
+  --color-violet-50: #FBF0F2;
+  --color-violet-100: #F6DCE1;
+  --color-violet-200: #EDC0C9;
+  --color-violet-300: #E7A7B4;
+  --color-violet-400: #E292A1;
+  --color-violet-500: #D17486;
+  --color-violet-600: #B45769;
+  --color-violet-700: #964455;
+  --color-violet-800: #763644;
+  --color-violet-900: #4F252F;
+  --color-violet-950: #31171D;
+
+  --color-purple-50: #FBF0F2;
+  --color-purple-100: #F6DCE1;
+  --color-purple-200: #EDC0C9;
+  --color-purple-300: #E7A7B4;
+  --color-purple-400: #E292A1;
+  --color-purple-500: #D17486;
+  --color-purple-600: #B45769;
+  --color-purple-700: #964455;
+  --color-purple-800: #763644;
+  --color-purple-900: #4F252F;
+  --color-purple-950: #31171D;
+
+  /* Soft Sage Mint (Positive / Income / Completed) */
+  --color-emerald-50: #EDF6F1;
+  --color-emerald-100: #D9EDE1;
+  --color-emerald-200: #B8DEC8;
+  --color-emerald-300: #97CEAF;
+  --color-emerald-400: #7DC49D;
+  --color-emerald-500: #4CA376;
+  --color-emerald-600: #317D57;
+  --color-emerald-700: #276446;
+  --color-emerald-800: #1F4E37;
+  --color-emerald-900: #183B2A;
+  --color-emerald-950: #12261C;
+
+  /* Soft Pastel Coral Rose (Expense / Destructive) */
+  --color-rose-50: #FDF0F0;
+  --color-rose-100: #FADADA;
+  --color-rose-200: #F4B9BA;
+  --color-rose-300: #EE9B9E;
+  --color-rose-400: #E9868A;
+  --color-rose-500: #D76368;
+  --color-rose-600: #B9484E;
+  --color-rose-700: #9A393E;
+  --color-rose-800: #782D31;
+  --color-rose-900: #522124;
+  --color-rose-950: #331517;
+
+  /* Soft Honey Amber (Warnings / Goals) */
+  --color-amber-50: #FEF6E6;
+  --color-amber-100: #FCEAC6;
+  --color-amber-200: #F7D696;
+  --color-amber-300: #F2C36E;
+  --color-amber-400: #EBB554;
+  --color-amber-500: #D5942C;
+  --color-amber-600: #A56C17;
+  --color-amber-700: #855513;
+  --color-amber-800: #664212;
+  --color-amber-900: #472E0E;
+  --color-amber-950: #2D1E0B;
 }
 
 @layer base {
@@ -11,24 +102,24 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     touch-action: manipulation;
-    background-color: #fafafa;
+    background-color: #FAF6F1;
     color-scheme: light;
   }
 
   html.dark {
-    background-color: #09090b;
+    background-color: #141110;
     color-scheme: dark;
   }
 
   body {
-    background-color: #fafafa;
+    background-color: #FAF6F1;
     padding-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
     padding-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
     overflow-x: hidden;
   }
 
   html.dark body {
-    background-color: #09090b;
+    background-color: #141110;
   }
 
   /* Prevent automatic iOS/Android text size inflate */
@@ -58,4 +149,78 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Tactile micro-interactions & compositor-only transitions (<= 200ms) */
+@keyframes tabEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(0.84);
+  }
+  55% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-tab-enter {
+  animation: tabEnter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-check-pop {
+  animation: checkPop 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-sheet-up {
+  animation: sheetUp 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.pressable {
+  transition:
+    transform 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease;
+}
+
+.pressable:active:not(:disabled) {
+  transform: scale(0.965);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-tab-enter,
+  .animate-check-pop,
+  .animate-sheet-up {
+    animation: none !important;
+  }
+
+  .pressable,
+  .pressable:active:not(:disabled) {
+    transition: none !important;
+    transform: none !important;
+  }
 }

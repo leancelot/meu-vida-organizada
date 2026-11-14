@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   CalendarPlus,
-  Camera,
   CheckSquare,
   CircleDollarSign,
   Plus,
@@ -10,18 +9,32 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { hapticImpactLight, hapticSelection } from '../../services/hapticsService';
 import { ReceiptScannerModal } from '../Finance/ReceiptScannerModal';
 
 interface QuickActionFabProps {
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   setCurrentTab: (tab: string) => void;
   onTriggerAgendaModal?: (mode: 'task' | 'event') => void;
 }
 
 export const QuickActionFab: React.FC<QuickActionFabProps> = ({
+  isOpen: controlledIsOpen,
+  onOpenChange,
   setCurrentTab,
   onTriggerAgendaModal,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+  const setOpen = (next: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(next);
+    } else {
+      setInternalIsOpen(next);
+    }
+  };
+
   const { addDraftNote } = useApp();
   const [isQuickNoteModal, setIsQuickNoteModal] = useState(false);
   const [isReceiptModal, setIsReceiptModal] = useState(false);
@@ -29,7 +42,7 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
 
   const handleAction = (tab: string) => {
     setCurrentTab(tab);
-    setIsOpen(false);
+    setOpen(false);
   };
 
   const handleSaveQuickNote = (e: React.FormEvent) => {
@@ -39,12 +52,12 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
     addDraftNote({
       title: quickNoteText.trim().split('\n')[0].slice(0, 40) || 'Rascunho Rápido',
       content: quickNoteText.trim(),
-      color: '#fef08a',
+      color: '#FCE8DF',
     });
 
     setQuickNoteText('');
     setIsQuickNoteModal(false);
-    setIsOpen(false);
+    setOpen(false);
   };
 
   return (
@@ -52,100 +65,121 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
       {/* Backdrop overlay to dismiss speed dial when tapping outside */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setOpen(false)}
         />
       )}
 
-      <div className="fixed bottom-20 md:bottom-8 right-4 sm:right-6 z-40 flex flex-col items-end gap-2">
-        {/* Speed Dial Options */}
-        {isOpen && (
-          <div className="flex flex-col items-end gap-2 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-            {/* Scan Receipt with AI */}
-            <button
-              onClick={() => {
-                setIsReceiptModal(true);
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-indigo-900 to-purple-900 text-white shadow-xl border border-indigo-500/30 hover:scale-105 transition-all cursor-pointer text-xs font-semibold group"
-            >
-              <span>Ler Nota com IA</span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-600 text-amber-300 flex items-center justify-center group-hover:rotate-12 transition-transform">
-                <Sparkles className="w-4 h-4" />
-              </div>
-            </button>
+      {/* Speed Dial Options: Centered above floating Nav Bar on mobile, anchored bottom-right on desktop */}
+      {isOpen && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:bottom-26 md:right-8 z-40 w-[min(calc(100vw-2rem),310px)] md:w-auto flex flex-col items-stretch md:items-end gap-2">
+          {/* Scan Receipt with AI */}
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection();
+              setIsReceiptModal(true);
+              setOpen(false);
+            }}
+            style={{ animationDelay: '80ms' }}
+            className="animate-sheet-up pressable flex items-center justify-between md:justify-end gap-3 px-4 py-2.5 min-h-[46px] rounded-2xl bg-gradient-to-r from-[#C8634A] to-[#B45769] dark:from-[#F09D82] dark:to-[#E292A1] text-white dark:text-[#24120E] shadow-xl border border-white/15 hover:scale-[1.02] cursor-pointer text-xs font-semibold group"
+          >
+            <span>Ler Nota com IA</span>
+            <div className="w-8 h-8 rounded-xl bg-white/20 dark:bg-black/15 flex items-center justify-center group-hover:rotate-12 transition-transform shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </div>
+          </button>
 
-            {/* Quick Draft */}
-            <button
-              onClick={() => {
-                setIsQuickNoteModal(true);
-                setIsOpen(false);
-              }}
-              className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-all cursor-pointer text-xs font-semibold group"
-            >
-              <span>Novo Rascunho</span>
-              <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <StickyNote className="w-4 h-4" />
-              </div>
-            </button>
+          {/* Quick Draft */}
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection();
+              setIsQuickNoteModal(true);
+              setOpen(false);
+            }}
+            style={{ animationDelay: '60ms' }}
+            className="animate-sheet-up pressable flex items-center justify-between md:justify-end gap-3 px-4 py-2.5 min-h-[46px] rounded-2xl bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer text-xs font-semibold group"
+          >
+            <span>Novo Rascunho</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <StickyNote className="w-4 h-4" />
+            </div>
+          </button>
 
-            {/* Agenda Event */}
-            <button
-              onClick={() => {
-                if (onTriggerAgendaModal) {
-                  onTriggerAgendaModal('event');
-                  setIsOpen(false);
-                } else {
-                  handleAction('agenda');
-                }
-              }}
-              className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-all cursor-pointer text-xs font-semibold group"
-            >
-              <span>Novo Evento na Agenda</span>
-              <div className="w-8 h-8 rounded-xl bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <CalendarPlus className="w-4 h-4" />
-              </div>
-            </button>
+          {/* Agenda Event */}
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection();
+              if (onTriggerAgendaModal) {
+                onTriggerAgendaModal('event');
+                setOpen(false);
+              } else {
+                handleAction('agenda');
+              }
+            }}
+            style={{ animationDelay: '40ms' }}
+            className="animate-sheet-up pressable flex items-center justify-between md:justify-end gap-3 px-4 py-2.5 min-h-[46px] rounded-2xl bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer text-xs font-semibold group"
+          >
+            <span>Novo Evento na Agenda</span>
+            <div className="w-8 h-8 rounded-xl bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <CalendarPlus className="w-4 h-4" />
+            </div>
+          </button>
 
-            {/* Transaction */}
-            <button
-              onClick={() => handleAction('financas')}
-              className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-all cursor-pointer text-xs font-semibold group"
-            >
-              <span>Nova Transação</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <CircleDollarSign className="w-4 h-4" />
-              </div>
-            </button>
+          {/* Transaction */}
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection();
+              handleAction('financas');
+            }}
+            style={{ animationDelay: '20ms' }}
+            className="animate-sheet-up pressable flex items-center justify-between md:justify-end gap-3 px-4 py-2.5 min-h-[46px] rounded-2xl bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer text-xs font-semibold group"
+          >
+            <span>Nova Transação</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <CircleDollarSign className="w-4 h-4" />
+            </div>
+          </button>
 
-            {/* Task */}
-            <button
-              onClick={() => {
-                if (onTriggerAgendaModal) {
-                  onTriggerAgendaModal('task');
-                  setIsOpen(false);
-                } else {
-                  handleAction('agenda');
-                }
-              }}
-              className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 transition-all cursor-pointer text-xs font-semibold group"
-            >
-              <span>Nova Tarefa</span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <CheckSquare className="w-4 h-4" />
-              </div>
-            </button>
-          </div>
-        )}
+          {/* Task */}
+          <button
+            type="button"
+            onClick={() => {
+              hapticSelection();
+              if (onTriggerAgendaModal) {
+                onTriggerAgendaModal('task');
+                setOpen(false);
+              } else {
+                handleAction('agenda');
+              }
+            }}
+            style={{ animationDelay: '0ms' }}
+            className="animate-sheet-up pressable flex items-center justify-between md:justify-end gap-3 px-4 py-2.5 min-h-[46px] rounded-2xl bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 shadow-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer text-xs font-semibold group"
+          >
+            <span>Nova Tarefa</span>
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <CheckSquare className="w-4 h-4" />
+            </div>
+          </button>
+        </div>
+      )}
 
-        {/* Main Floating Trigger Button */}
+      {/* Desktop-only Floating Trigger Button (mobile uses center + button in MobileNav) */}
+      <div className="hidden md:flex fixed bottom-8 right-8 z-40">
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          type="button"
+          onClick={() => {
+            hapticImpactLight();
+            setOpen(!isOpen);
+          }}
           title="Ação Rápida (+)"
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl transition-all cursor-pointer ${
+          className={`pressable w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl transition-transform duration-150 cursor-pointer ${
             isOpen
-              ? 'bg-zinc-800 dark:bg-zinc-700 rotate-45 scale-95'
-              : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30 hover:scale-105'
+              ? 'bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-950 rotate-45 scale-95'
+              : 'bg-gradient-to-br from-[#DC7B62] to-[#BE6272] dark:from-[#F2A68E] dark:to-[#E69BA7] text-white dark:text-[#24120E] shadow-indigo-600/25 hover:scale-105'
           }`}
         >
           <Plus className="w-7 h-7 stroke-[2.5]" />
@@ -164,8 +198,9 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsQuickNoteModal(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600"
+                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -186,7 +221,7 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsQuickNoteModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-zinc-600 cursor-pointer"
+                  className="px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
                 >
                   Cancelar
                 </button>

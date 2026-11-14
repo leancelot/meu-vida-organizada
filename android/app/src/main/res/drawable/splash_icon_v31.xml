@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+    <!-- Rounded pastel emblem centered inside Android 12+ 192dp splash safe circle -->
+    <path android:pathData="M96,68 h96 a28,28 0 0 1 28,28 v96 a28,28 0 0 1 -28,28 h-96 a28,28 0 0 1 -28,-28 v-96 a28,28 0 0 1 28,-28 z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="74"
+                android:startY="74"
+                android:endX="214"
+                android:endY="214"
+                android:type="linear">
+                <item android:color="#E88E76" android:offset="0.0" />
+                <item android:color="#D46F65" android:offset="0.5" />
+                <item android:color="#BE6272" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FFFDFB"
+        android:pathData="M136,102 C138.8,123.5 148.5,133.2 170,136 C148.5,138.8 138.8,148.5 136,170 C133.2,148.5 123.5,138.8 102,136 C123.5,133.2 133.2,123.5 136,102 Z" />
+    <path
+        android:fillColor="#FCE8DF"
+        android:pathData="M174,154 C175.6,164.6 180.4,169.4 191,171 C180.4,172.6 175.6,177.4 174,188 C172.4,177.4 167.6,172.6 157,171 C167.6,169.4 172.4,164.6 174,154 Z" />
+</vector>

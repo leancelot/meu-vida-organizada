@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BankNotificationPlugin.class);
         registerPlugin(OfflineReceiptOcrPlugin.class);
         registerPlugin(SystemAppearancePlugin.class);
+        registerPlugin(BiometricLockPlugin.class);
         super.onCreate(savedInstanceState);
 
         WebView mainWebView = null;

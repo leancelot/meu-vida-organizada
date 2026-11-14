@@ -63,6 +63,7 @@ const STORAGE_KEY_SYNC = 'vidaorganizada_sync_info_v2';
 const STORAGE_KEY_NOTIFS = 'vidaorganizada_notifications_v2';
 const STORAGE_KEY_THEME = 'vidaorganizada_theme_v1';
 const STORAGE_KEY_HIDE_VALUES = 'vidaorganizada_hide_values_v1';
+const STORAGE_KEY_FINANCE_LOCK = 'vidaorganizada_finance_lock_v1';
 const STORAGE_KEY_PENDING_BANK = 'vidaorganizada_pending_bank_v1';
 const STORAGE_KEY_BANK_SIGS = 'vidaorganizada_ingested_bank_sigs_v1';
 const CURRENT_DATA_VERSION = 3;
@@ -223,13 +224,16 @@ interface AppContextType {
   addTask: (task: Omit<TaskItem, 'id'>) => void;
   updateTask: (id: string, updates: Partial<TaskItem>) => void;
   toggleTaskCompletion: (id: string) => void;
+  snoozeTaskToTomorrow: (id: string) => void;
   deleteTask: (id: string) => void;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
 
-  // Privacy Mode state
+  // Privacy Mode & Biometric Lock state
   hideValues: boolean;
   toggleHideValues: () => void;
   formatMoney: (amount: number) => string;
+  financeLockEnabled: boolean;
+  setFinanceLockEnabled: (enabled: boolean) => void;
 
   // Finance actions
   addTransaction: (tx: Omit<Transaction, 'id'>) => void;
@@ -335,7 +339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', isDark ? '#18181b' : '#ffffff');
+      metaThemeColor.setAttribute('content', isDark ? '#1C1715' : '#FAF6F1');
     }
 
     try {
@@ -418,6 +422,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     [hideValues]
   );
+
+  // Optional Android Biometric Lock for Finance tab (persisted locally)
+  const [financeLockEnabled, setFinanceLockEnabledState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_FINANCE_LOCK) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const setFinanceLockEnabled = useCallback((enabled: boolean) => {
+    setFinanceLockEnabledState(enabled);
+    try {
+      localStorage.setItem(STORAGE_KEY_FINANCE_LOCK, String(enabled));
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Bank notification review queue & Android listener state
   const bankListenerSupported = isAndroidNotificationCaptureSupported();
@@ -1324,6 +1346,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     triggerAutoSync();
   };
 
+  const snoozeTaskToTomorrow = (id: string) => {
+    const taskToSnooze = tasks.find((t) => t.id === id);
+    if (!taskToSnooze) return;
+
+    const previousDueDate = taskToSnooze.dueDate;
+    const todayNoon = new Date();
+    todayNoon.setHours(12, 0, 0, 0);
+    const baseDate = previousDueDate ? new Date(`${previousDueDate}T12:00:00`) : new Date(todayNoon);
+    const anchor = Number.isNaN(baseDate.getTime()) || baseDate < todayNoon ? new Date(todayNoon) : baseDate;
+    anchor.setDate(anchor.getDate() + 1);
+
+    const tomorrowStr = `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(
+      2,
+      '0'
+    )}-${String(anchor.getDate()).padStart(2, '0')}`;
+
+    hapticImpactLight();
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, dueDate: tomorrowStr } : t))
+    );
+    triggerAutoSync();
+
+    const formattedTarget = new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    }).format(anchor);
+
+    showUndoToast(`"${taskToSnooze.title}" adiada para ${formattedTarget}.`, () => {
+      hapticImpactLight();
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, dueDate: previousDueDate } : t))
+      );
+      triggerAutoSync();
+    });
+  };
+
   const deleteTask = (id: string) => {
     const taskToDelete = tasks.find((t) => t.id === id);
     if (!taskToDelete) return;
@@ -1728,6 +1786,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addTask,
         updateTask,
         toggleTaskCompletion,
+        snoozeTaskToTomorrow,
         deleteTask,
         toggleSubtask,
         addTransaction,
@@ -1739,6 +1798,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         hideValues,
         toggleHideValues,
         formatMoney,
+        financeLockEnabled,
+        setFinanceLockEnabled,
         pendingBankNotifications,
         bankListenerSupported,
         bankListenerPermission,

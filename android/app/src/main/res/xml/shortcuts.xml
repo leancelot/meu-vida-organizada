@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="shortcut_new_task"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_task"
+        android:shortcutShortLabel="@string/shortcut_new_task_short"
+        android:shortcutLongLabel="@string/shortcut_new_task_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.vidaorganizada.app"
+            android:targetClass="com.vidaorganizada.app.MainActivity"
+            android:data="com.vidaorganizada.app://shortcut?action=new-task" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="shortcut_new_transaction"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_finance"
+        android:shortcutShortLabel="@string/shortcut_new_tx_short"
+        android:shortcutLongLabel="@string/shortcut_new_tx_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.vidaorganizada.app"
+            android:targetClass="com.vidaorganizada.app.MainActivity"
+            android:data="com.vidaorganizada.app://shortcut?action=new-transaction" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="shortcut_scan_receipt"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_receipt"
+        android:shortcutShortLabel="@string/shortcut_scan_receipt_short"
+        android:shortcutLongLabel="@string/shortcut_scan_receipt_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.vidaorganizada.app"
+            android:targetClass="com.vidaorganizada.app.MainActivity"
+            android:data="com.vidaorganizada.app://shortcut?action=scan-receipt" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="shortcut_open_agenda"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_agenda"
+        android:shortcutShortLabel="@string/shortcut_agenda_short"
+        android:shortcutLongLabel="@string/shortcut_agenda_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.vidaorganizada.app"
+            android:targetClass="com.vidaorganizada.app.MainActivity"
+            android:data="com.vidaorganizada.app://shortcut?action=agenda" />
+    </shortcut>
+</shortcuts>

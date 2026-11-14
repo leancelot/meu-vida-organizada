@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   Calendar,
+  CalendarClock,
   CalendarPlus,
   Check,
   CheckCircle2,
@@ -111,6 +112,7 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
     addTask,
     updateTask,
     toggleTaskCompletion,
+    snoozeTaskToTomorrow,
     deleteTask,
     toggleSubtask,
     scheduleTaskInCalendar,
@@ -456,9 +458,9 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
             type="button"
             onClick={() => toggleTaskCompletion(task.id)}
             aria-label={task.completed ? 'Desmarcar tarefa' : 'Concluir tarefa'}
-            className={`mt-0.5 min-w-[24px] min-h-[24px] w-6 h-6 rounded-lg flex items-center justify-center border transition-colors cursor-pointer shrink-0 ${
+            className={`pressable mt-0.5 min-w-[24px] min-h-[24px] w-6 h-6 rounded-lg flex items-center justify-center border cursor-pointer shrink-0 ${
               task.completed
-                ? 'bg-emerald-600 border-emerald-600 text-white'
+                ? 'bg-emerald-600 border-emerald-600 text-white animate-check-pop'
                 : 'border-zinc-300 dark:border-zinc-700 hover:border-indigo-500 text-transparent'
             }`}
           >
@@ -548,11 +550,22 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
 
             {/* Action row */}
             <div className="flex flex-wrap items-center gap-3 mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800/80 text-xs">
+              {!task.completed && (
+                <button
+                  type="button"
+                  onClick={() => snoozeTaskToTomorrow(task.id)}
+                  title="Adiar tarefa para amanhã"
+                  className="pressable inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium cursor-pointer"
+                >
+                  <CalendarClock className="w-3.5 h-3.5" />
+                  <span>+1 dia</span>
+                </button>
+              )}
               {!task.googleCalendarEventId && (
                 <button
                   type="button"
                   onClick={() => scheduleTaskInCalendar(task)}
-                  className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
+                  className="pressable inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
                 >
                   <CalendarPlus className="w-3.5 h-3.5" />
                   <span>Agendar</span>
@@ -566,7 +579,7 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
                   setTimerSeconds(25 * 60);
                   setIsTimerRunning(true);
                 }}
-                className="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium cursor-pointer"
+                className="pressable inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium cursor-pointer"
               >
                 <Play className="w-3 h-3" />
                 <span>Foco</span>
@@ -574,7 +587,7 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
               <button
                 type="button"
                 onClick={() => openEditModal(task)}
-                className="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium cursor-pointer"
+                className="pressable inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium cursor-pointer"
               >
                 <Edit3 className="w-3 h-3" />
                 <span>Editar</span>
@@ -583,7 +596,7 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
                 type="button"
                 onClick={() => deleteTask(task.id)}
                 aria-label="Excluir tarefa"
-                className="ml-auto inline-flex items-center gap-1 text-zinc-400 hover:text-rose-500 cursor-pointer p-1"
+                className="pressable ml-auto inline-flex items-center gap-1 text-zinc-400 hover:text-rose-500 cursor-pointer p-1"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -702,73 +715,77 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
           </div>
 
           {/* Segmented Dia / Semana + Ações de Criação */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => {
-                  hapticSelection();
-                  setViewMode('day');
-                }}
-                className={`min-h-[36px] px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  viewMode === 'day'
-                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs'
-                    : 'text-zinc-600 dark:text-zinc-400'
-                }`}
-              >
-                Dia
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  hapticSelection();
-                  setViewMode('week');
-                }}
-                className={`min-h-[36px] px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  viewMode === 'week'
-                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs'
-                    : 'text-zinc-600 dark:text-zinc-400'
-                }`}
-              >
-                Semana
-              </button>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex-1 sm:flex-initial grid grid-cols-2 sm:inline-flex items-center h-10 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticSelection();
+                    setViewMode('day');
+                  }}
+                  className={`h-8 px-3.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap flex items-center justify-center ${
+                    viewMode === 'day'
+                      ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                      : 'text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
+                  Dia
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticSelection();
+                    setViewMode('week');
+                  }}
+                  className={`h-8 px-3.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap flex items-center justify-center ${
+                    viewMode === 'week'
+                      ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                      : 'text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
+                  Semana
+                </button>
+              </div>
+
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => refreshCalendar()}
+                  disabled={isLoadingCalendar}
+                  title="Atualizar Google Agenda"
+                  className="w-10 h-10 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingCalendar ? 'animate-spin' : ''}`} />
+                </button>
+              )}
             </div>
 
-            {user && (
+            <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={() => refreshCalendar()}
-                disabled={isLoadingCalendar}
-                title="Atualizar Google Agenda"
-                className="min-h-[40px] min-w-[40px] p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
+                onClick={() => {
+                  setNewDueDate(selectedDateStr);
+                  setIsTaskModalOpen(true);
+                }}
+                className="h-10 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <RefreshCw className={`w-4 h-4 ${isLoadingCalendar ? 'animate-spin' : ''}`} />
+                <Plus className="w-4 h-4 shrink-0" />
+                <span>Nova Tarefa</span>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setNewDueDate(selectedDateStr);
-                setIsTaskModalOpen(true);
-              }}
-              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nova Tarefa</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setEventDate(selectedDateStr);
-                setIsEventModalOpen(true);
-              }}
-              className="min-h-[40px] px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-100 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <CalendarPlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Novo Evento</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEventDate(selectedDateStr);
+                  setIsEventModalOpen(true);
+                }}
+                className="h-10 px-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <CalendarPlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>Novo Evento</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -779,12 +796,12 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
               {activeDayTitle}
             </h2>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={() => navigateStep(-1)}
                 aria-label="Período anterior"
-                className="min-h-[36px] min-w-[36px] p-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -794,7 +811,7 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
                   hapticSelection();
                   setSelectedDateStr(todayStr);
                 }}
-                className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                className={`h-9 px-3.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer flex items-center justify-center ${
                   selectedDateStr === todayStr
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30'
                     : 'border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -806,7 +823,7 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
                 type="button"
                 onClick={() => navigateStep(1)}
                 aria-label="Próximo período"
-                className="min-h-[36px] min-w-[36px] p-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center cursor-pointer"
+                className="w-9 h-9 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>

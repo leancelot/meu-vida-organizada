@@ -4,4 +4,14 @@
     <string name="title_activity_main">VidaOrganizada</string>
     <string name="package_name">com.vidaorganizada.app</string>
     <string name="custom_url_scheme">com.vidaorganizada.app</string>
+
+    <!-- App Shortcuts -->
+    <string name="shortcut_new_task_short">Nova Tarefa</string>
+    <string name="shortcut_new_task_long">Criar nova tarefa rápida</string>
+    <string name="shortcut_new_tx_short">Nova Transação</string>
+    <string name="shortcut_new_tx_long">Registrar receita ou despesa</string>
+    <string name="shortcut_scan_receipt_short">Ler Nota Fiscal</string>
+    <string name="shortcut_scan_receipt_long">Escanear nota ou cupom com IA</string>
+    <string name="shortcut_agenda_short">Abrir Agenda</string>
+    <string name="shortcut_agenda_long">Ver compromissos e tarefas de hoje</string>
 </resources>
