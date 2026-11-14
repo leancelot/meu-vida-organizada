@@ -30,8 +30,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800 shadow-xl"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 6px)' }}
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 pb-[max(env(safe-area-inset-bottom,0px),var(--safe-area-inset-bottom,0px),6px)] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800 shadow-xl"
     >
       <div className="grid grid-cols-4 items-center h-14 px-2">
         {/* 1. Início */}

@@ -11,13 +11,24 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     touch-action: manipulation;
+    background-color: #fafafa;
+    color-scheme: light;
+  }
+
+  html.dark {
+    background-color: #09090b;
+    color-scheme: dark;
   }
 
   body {
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+    background-color: #fafafa;
+    padding-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+    padding-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
     overflow-x: hidden;
+  }
+
+  html.dark body {
+    background-color: #09090b;
   }
 
   /* Prevent automatic iOS/Android text size inflate */

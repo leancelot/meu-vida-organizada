@@ -12,6 +12,16 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    SystemBars: {
+      insetsHandling: 'css',
+      style: 'DARK',
+      initialViewportFitValueHint: 'cover',
+    },
+    StatusBar: {
+      overlaysWebView: true,
+      style: 'DARK',
+      backgroundColor: '#18181b',
+    },
     LocalNotifications: {
       smallIcon: 'ic_launcher',
       iconColor: '#4f46e5',

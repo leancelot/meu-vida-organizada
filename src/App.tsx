@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { StatusBar, Style } from '@capacitor/status-bar';
+import { syncNativeSystemBars } from './services/systemAppearanceBridge';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { MobileNav } from './components/MobileNav';
@@ -28,17 +28,10 @@ const MainApp: React.FC = () => {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
 
-  // Sincronizar Status Bar no Android nativo com o tema atual
+  // Sincronizar Status Bar, Navigation Bar e DecorView no Android nativo com o tema atual
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    if (theme === 'dark') {
-      StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-      StatusBar.setBackgroundColor({ color: '#09090b' }).catch(() => {});
-    } else {
-      StatusBar.setStyle({ style: Style.Light }).catch(() => {});
-      StatusBar.setBackgroundColor({ color: '#fafafa' }).catch(() => {});
-    }
-  }, [theme]);
+    void syncNativeSystemBars(theme, !onboardingCompleted);
+  }, [theme, onboardingCompleted]);
 
   // Hardware Back Button no Android nativo
   useEffect(() => {

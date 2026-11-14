@@ -29,7 +29,7 @@ export const OnboardingView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex items-center justify-center px-4 py-8 transition-colors">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex items-center justify-center px-4 pt-[calc(max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px))+2rem)] pb-[calc(max(env(safe-area-inset-bottom,0px),var(--safe-area-inset-bottom,0px))+2rem)] transition-colors">
       <div className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-7">
         {/* Marca & Boas-vindas */}
         <header className="space-y-3">
