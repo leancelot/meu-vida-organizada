@@ -663,7 +663,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* SUB-TAB 1: RESUMO */}
       {activeSubTab === 'resumo' && (
-        <div className="space-y-5 animate-in fade-in duration-200">
+        <div className="space-y-5 animate-tab-enter">
           {/* KPI Cards - 2 cols on mobile, 4 cols on desktop */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {/* Saldo Atual */}
@@ -948,7 +948,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* SUB-TAB 2: LANÇAMENTOS */}
       {activeSubTab === 'lancamentos' && (
-        <div className="space-y-5 animate-in fade-in duration-200">
+        <div className="space-y-5 animate-tab-enter">
           {/* Android Notification Permission Banner (only shown on Android when disabled) */}
           {bankListenerSupported && !bankListenerPermission && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1308,7 +1308,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* SUB-TAB 3: METAS */}
       {activeSubTab === 'metas' && (
-        <div className="space-y-5 animate-in fade-in duration-200">
+        <div className="space-y-5 animate-tab-enter">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -1409,8 +1409,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* Paste Bank Alert / SMS Modal */}
       {isPasteBankModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              hapticSelection();
+              setIsPasteBankModalOpen(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+        >
+          <div className="w-full sm:max-w-lg bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8 max-h-[90vh] overflow-y-auto animate-bottom-sheet">
+            <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-2">
                 <ClipboardPaste className="w-5 h-5 text-indigo-600" />
@@ -1419,8 +1428,13 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 </h3>
               </div>
               <button
-                onClick={() => setIsPasteBankModalOpen(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                type="button"
+                onClick={() => {
+                  hapticSelection();
+                  setIsPasteBankModalOpen(false);
+                }}
+                className="pressable p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1504,8 +1518,11 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
               <div className="pt-3 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5 border-t border-zinc-100 dark:border-zinc-800">
                 <button
                   type="button"
-                  onClick={() => setIsPasteBankModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                  onClick={() => {
+                    hapticSelection();
+                    setIsPasteBankModalOpen(false);
+                  }}
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -1513,14 +1530,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                   type="button"
                   disabled={!livePastePreview}
                   onClick={handleEditFromPastedText}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 transition-colors cursor-pointer"
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 cursor-pointer"
                 >
                   Editar campos
                 </button>
                 <button
                   type="submit"
                   disabled={!livePastePreview}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 transition-colors cursor-pointer"
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 cursor-pointer"
                 >
                   Enviar para fila
                 </button>
@@ -1532,18 +1549,31 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* Add / Edit Transaction Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              hapticSelection();
+              resetTransactionModal();
+              setIsAddModalOpen(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+        >
+          <div className="w-full sm:max-w-lg bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8 max-h-[90vh] overflow-y-auto animate-bottom-sheet">
+            <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800">
               <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                 {editingPendingBankId ? 'Revisar Lançamento Bancário' : 'Nova Transação'}
               </h3>
               <button
+                type="button"
                 onClick={() => {
+                  hapticSelection();
                   resetTransactionModal();
                   setIsAddModalOpen(false);
                 }}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="pressable p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1696,16 +1726,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    hapticSelection();
                     resetTransactionModal();
                     setIsAddModalOpen(false);
                   }}
-                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-md transition-all cursor-pointer ${
+                  className={`pressable min-h-[40px] px-5 py-2 rounded-xl text-sm font-semibold text-white shadow-md cursor-pointer ${
                     txType === 'receita'
                       ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                       : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
@@ -1721,15 +1752,29 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* Budget Adjust Modal */}
       {isBudgetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              hapticSelection();
+              setIsBudgetModalOpen(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+        >
+          <div className="w-full sm:max-w-md bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8 max-h-[90vh] overflow-y-auto animate-bottom-sheet">
+            <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800">
               <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                 Limites de Orçamento Mensal
               </h3>
               <button
-                onClick={() => setIsBudgetModalOpen(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                type="button"
+                onClick={() => {
+                  hapticSelection();
+                  setIsBudgetModalOpen(false);
+                }}
+                className="pressable p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1772,14 +1817,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
               <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsBudgetModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
+                  onClick={() => {
+                    hapticSelection();
+                    setIsBudgetModalOpen(false);
+                  }}
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
                 >
                   Salvar Limites
                 </button>
@@ -1791,15 +1839,29 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* Goal Create Modal */}
       {isGoalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 sm:p-8">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              hapticSelection();
+              setIsGoalModalOpen(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+        >
+          <div className="w-full sm:max-w-md bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8 max-h-[90vh] overflow-y-auto animate-bottom-sheet">
+            <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800">
               <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                 Nova Meta Financeira
               </h3>
               <button
-                onClick={() => setIsGoalModalOpen(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                type="button"
+                onClick={() => {
+                  hapticSelection();
+                  setIsGoalModalOpen(false);
+                }}
+                className="pressable p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1868,14 +1930,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
               <div className="pt-3 flex justify-end gap-3 border-t border-zinc-100 dark:border-zinc-800">
                 <button
                   type="button"
-                  onClick={() => setIsGoalModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
+                  onClick={() => {
+                    hapticSelection();
+                    setIsGoalModalOpen(false);
+                  }}
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                  className="pressable min-h-[40px] px-5 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
                 >
                   Salvar Meta
                 </button>
@@ -1887,15 +1952,29 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
 
       {/* Add Amount to Goal Modal */}
       {addingToGoal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              hapticSelection();
+              setAddingToGoal(null);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+        >
+          <div className="w-full sm:max-w-sm bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-6 max-h-[90vh] overflow-y-auto animate-bottom-sheet">
+            <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
               <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate pr-2">
                 Adicionar à meta
               </h3>
               <button
-                onClick={() => setAddingToGoal(null)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                type="button"
+                onClick={() => {
+                  hapticSelection();
+                  setAddingToGoal(null);
+                }}
+                className="pressable p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1925,14 +2004,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setAddingToGoal(null)}
-                  className="px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
+                  onClick={() => {
+                    hapticSelection();
+                    setAddingToGoal(null);
+                  }}
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
                 >
                   Adicionar
                 </button>

@@ -39,6 +39,7 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
   const [isQuickNoteModal, setIsQuickNoteModal] = useState(false);
   const [isReceiptModal, setIsReceiptModal] = useState(false);
   const [quickNoteText, setQuickNoteText] = useState('');
+  const [pinOnHome, setPinOnHome] = useState(true);
 
   const handleAction = (tab: string) => {
     setCurrentTab(tab);
@@ -49,13 +50,16 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
     e.preventDefault();
     if (!quickNoteText.trim()) return;
 
+    hapticImpactLight();
     addDraftNote({
       title: quickNoteText.trim().split('\n')[0].slice(0, 40) || 'Rascunho Rápido',
       content: quickNoteText.trim(),
       color: '#FCE8DF',
+      isPinned: pinOnHome,
     });
 
     setQuickNoteText('');
+    setPinOnHome(true);
     setIsQuickNoteModal(false);
     setOpen(false);
   };
@@ -65,7 +69,7 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
       {/* Backdrop overlay to dismiss speed dial when tapping outside */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-xs animate-backdrop-in"
           onClick={() => setOpen(false)}
         />
       )}
@@ -188,8 +192,17 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
 
       {/* Quick Note Modal from FAB */}
       {isQuickNoteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              hapticSelection();
+              setIsQuickNoteModal(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+        >
+          <div className="w-full sm:max-w-md bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-6 max-h-[90vh] overflow-y-auto animate-bottom-sheet">
+            <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex items-center gap-2">
                 <StickyNote className="w-5 h-5 text-amber-500" />
@@ -200,7 +213,8 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
               <button
                 type="button"
                 onClick={() => setIsQuickNoteModal(false)}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                className="pressable p-1.5 rounded-full text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -214,20 +228,36 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
                 placeholder="Escreva sua ideia, telefone, lembrete ou pensamento rápido..."
                 value={quickNoteText}
                 onChange={(e) => setQuickNoteText(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none resize-none"
+                className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none resize-none"
               />
+
+              <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={pinOnHome}
+                  onChange={(e) => {
+                    hapticSelection();
+                    setPinOnHome(e.target.checked);
+                  }}
+                  className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                />
+                <span>Fixar na tela inicial</span>
+              </label>
 
               <div className="pt-2 flex justify-end gap-2 border-t border-zinc-100 dark:border-zinc-800">
                 <button
                   type="button"
-                  onClick={() => setIsQuickNoteModal(false)}
-                  className="px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
+                  onClick={() => {
+                    hapticSelection();
+                    setIsQuickNoteModal(false);
+                  }}
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                  className="pressable min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
                 >
                   Salvar Rascunho
                 </button>

@@ -4,16 +4,14 @@ import {
   CalendarClock,
   Check,
   CheckCircle2,
-  Circle,
   Clock,
+  PinOff,
   Plus,
   ArrowRight,
-  Sparkles,
-  Cloud,
-  Layers,
+  StickyNote,
+  Trash2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { TaskItem, GoogleCalendarEvent } from '../../types';
 import { hapticSelection, hapticImpactLight } from '../../services/hapticsService';
 
 interface DashboardViewProps {
@@ -27,6 +25,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
     snoozeTaskToTomorrow,
     addTask,
     calendarEvents,
+    draftNotes,
+    togglePinDraft,
+    deleteDraftNote,
     user,
     userName,
     driveSyncInfo,
@@ -58,6 +59,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
       return false;
     });
   }, [calendarEvents, todayStr]);
+
+  // Pinned quick drafts
+  const pinnedDrafts = useMemo(
+    () => draftNotes.filter((d) => d.isPinned),
+    [draftNotes]
+  );
 
   // Formatted date string in Brazilian Portuguese
   const formattedTodayDate = useMemo(() => {
@@ -353,7 +360,66 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ setCurrentTab }) =
         )}
       </section>
 
-      {/* 5. Acessos Rápidos Discretos no Rodapé */}
+      {/* 5. Rascunhos Fixados (Discreto — apenas quando existir) */}
+      {pinnedDrafts.length > 0 && (
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between px-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-zinc-400">
+              <StickyNote className="w-3.5 h-3.5 text-amber-500" />
+              <span>Rascunhos Fixados ({pinnedDrafts.length})</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {pinnedDrafts.map((draft) => (
+              <div
+                key={draft.id}
+                className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-800/40 flex items-start justify-between gap-2.5"
+              >
+                <div className="min-w-0 space-y-1">
+                  <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                    {draft.title}
+                  </h3>
+                  {draft.content && draft.content !== draft.title && (
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed">
+                      {draft.content}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticSelection();
+                      togglePinDraft(draft.id);
+                    }}
+                    title="Desafixar da tela inicial"
+                    aria-label={`Desafixar ${draft.title}`}
+                    className="pressable w-8 h-8 rounded-xl text-amber-700/80 dark:text-amber-300/80 hover:bg-amber-100 dark:hover:bg-amber-900/50 flex items-center justify-center cursor-pointer"
+                  >
+                    <PinOff className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticSelection();
+                      deleteDraftNote(draft.id);
+                    }}
+                    title="Excluir rascunho"
+                    aria-label={`Excluir ${draft.title}`}
+                    className="pressable w-8 h-8 rounded-xl text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 6. Acessos Rápidos Discretos no Rodapé */}
       <footer className="pt-4 border-t border-zinc-100 dark:border-zinc-850 flex flex-wrap items-center justify-center gap-2">
         <button
           onClick={() => {

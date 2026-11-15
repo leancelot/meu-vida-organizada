@@ -55,6 +55,7 @@ import {
   hapticSuccess,
   hapticWarning,
   hapticImpactLight,
+  hapticSelection,
 } from '../services/hapticsService';
 import confetti from 'canvas-confetti';
 
@@ -1839,8 +1840,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       {/* Global Confirmation Modal */}
       {confirmConfig.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 relative">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !confirmConfig.isProcessing) {
+              hapticSelection();
+              setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+        >
+          <div className="w-full sm:max-w-md bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-6 max-h-[90vh] overflow-y-auto relative animate-bottom-sheet">
+            <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
               {confirmConfig.title}
             </h3>
@@ -1857,8 +1867,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             <div className="mt-6 flex justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
               <button
                 type="button"
-                onClick={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                onClick={() => {
+                  hapticSelection();
+                  setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+                }}
+                disabled={confirmConfig.isProcessing}
+                className="pressable min-h-[40px] px-4 py-2 rounded-xl text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 cursor-pointer"
               >
                 Cancelar
               </button>
@@ -1866,7 +1880,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 type="button"
                 onClick={confirmConfig.onConfirm}
                 disabled={confirmConfig.isProcessing}
-                className={`px-4 py-2 rounded-xl text-sm font-medium text-white shadow-xs transition-colors cursor-pointer ${
+                className={`pressable min-h-[40px] px-4 py-2 rounded-xl text-sm font-medium text-white shadow-xs cursor-pointer ${
                   confirmConfig.isDestructive
                     ? 'bg-rose-600 hover:bg-rose-700'
                     : 'bg-indigo-600 hover:bg-indigo-700'
