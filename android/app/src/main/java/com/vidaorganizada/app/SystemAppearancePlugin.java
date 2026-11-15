@@ -36,6 +36,12 @@ public class SystemAppearancePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void notifyAppReady(PluginCall call) {
+        MainActivity.markAppReady();
+        call.resolve();
+    }
+
+    @PluginMethod
     public void setTheme(PluginCall call) {
         String theme = call.getString("theme", "dark");
         String barColor = call.getString("barColor");

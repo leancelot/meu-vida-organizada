@@ -12,7 +12,7 @@ export interface ParseBankNotificationParams {
 const KNOWN_BANKS: Array<{ patterns: RegExp[]; label: string }> = [
   { patterns: [/\bnubank\b/i, /\bnu\s*pagamentos\b/i, /\broxinho\b/i], label: 'Nubank' },
   { patterns: [/\bbanco\s*inter\b/i, /\binter\b/i], label: 'Banco Inter' },
-  { patterns: [/\bita[uú]\b/i, /\bpersonnalit[eé]\b/i], label: 'Itaú' },
+  { patterns: [/\bita[uú](?![A-Za-zÀ-ÿ0-9_])/i, /\bpersonnalit[eé](?![A-Za-zÀ-ÿ0-9_])/i], label: 'Itaú' },
   { patterns: [/\bbradesco\b/i], label: 'Bradesco' },
   { patterns: [/\bsantander\b/i], label: 'Santander' },
   { patterns: [/\bbanco\s*do\s*brasil\b/i, /\bbb\b/i], label: 'Banco do Brasil' },
@@ -186,7 +186,7 @@ function inferCategory(text: string, type: TransactionType): FinanceCategory {
   }
 
   if (
-    /\b(?:ifood|rappi|z[eé]\s*delivery|supermercado|mercado|atacad[aã]o|padaria|restaurante|lanchonete|caf[eé]|a[cç]ougue|hortifruti|mc\s?donald|burger\s?king|pizza|sushi|carrefour|assai|p[aã]o\s*de\s*a[cç][uú]car|extra)\b/i.test(
+    /\b(?:ifood|rappi|z[eé]\s*delivery|supermercado|mercado|atacad[aã]o|padaria|restaurante|lanchonete|caf[eé](?![A-Za-zÀ-ÿ0-9_])|a[cç]ougue|hortifruti|mc\s?donald|burger\s?king|pizza|sushi|carrefour|assai|p[aã]o\s*de\s*a[cç][uú]car|extra)\b/i.test(
       text
     )
   ) {
@@ -194,7 +194,7 @@ function inferCategory(text: string, type: TransactionType): FinanceCategory {
   }
 
   if (
-    /\b(?:uber|99|99app|indrive|posto|combust[ií]vel|gasolina|etanol|ipiranga|shell|petrobras|estacionamento|ped[aá]gio|sem\s*parar|veloe|metr[oô]|[oô]nibus|passagem)\b/i.test(
+    /\b(?:uber|99|99app|indrive|posto|combust[ií]vel|gasolina|etanol|ipiranga|shell|petrobras|estacionamento|ped[aá]gio|sem\s*parar|veloe|metr[oô](?![A-Za-zÀ-ÿ0-9_])|[oô]nibus|passagem)\b/i.test(
       text
     )
   ) {

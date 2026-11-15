@@ -3,6 +3,12 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { User } from 'firebase/auth';
+import { useBackHandler } from './BackNavigationContext';
+import {
+  CURRENT_DATA_VERSION,
+  DEFAULT_WIDGETS,
+  sanitizeLegacyPayload,
+} from '../utils/storageSanitizer';
 import {
   TaskItem,
   Transaction,
@@ -67,112 +73,12 @@ const STORAGE_KEY_HIDE_VALUES = 'vidaorganizada_hide_values_v1';
 const STORAGE_KEY_FINANCE_LOCK = 'vidaorganizada_finance_lock_v1';
 const STORAGE_KEY_PENDING_BANK = 'vidaorganizada_pending_bank_v1';
 const STORAGE_KEY_BANK_SIGS = 'vidaorganizada_ingested_bank_sigs_v1';
-const CURRENT_DATA_VERSION = 3;
 const BANK_DEDUPE_WINDOW_MS = 10 * 60 * 1000;
 
 const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
 });
-
-const DEFAULT_WIDGETS = ['overview', 'schedule', 'tasks', 'finance', 'scratchpad', 'reminders'];
-
-// Assinaturas exatas dos antigos registros de exemplo para remoção segura apenas se não editados
-const LEGACY_SEED_TASK_TITLES: Record<string, string> = {
-  't-1': 'Revisar orçamento mensal e contas a pagar',
-  't-2': 'Planejar metas da semana e prioridades',
-  't-3': 'Prática de exercícios físicos (45 min)',
-  't-4': 'Leitura de 20 páginas de livro',
-};
-
-const LEGACY_SEED_TRANSACTIONS: Record<string, { title: string; amount: number }> = {
-  'tx-1': { title: 'Salário Mensal', amount: 5800 },
-  'tx-2': { title: 'Projeto Freelance', amount: 1450 },
-  'tx-3': { title: 'Aluguel & Condomínio', amount: 1850 },
-  'tx-4': { title: 'Supermercado do Mês', amount: 780.45 },
-  'tx-5': { title: 'Combustível / Transporte', amount: 220 },
-  'tx-6': { title: 'Academia & Saúde', amount: 190 },
-};
-
-const LEGACY_SEED_GOALS: Record<string, { title: string; targetAmount: number; currentAmount: number }> = {
-  'g-1': { title: 'Reserva de Emergência (6 meses)', targetAmount: 25000, currentAmount: 18500 },
-  'g-2': { title: 'Viagem de Férias', targetAmount: 6000, currentAmount: 3400 },
-  'g-3': { title: 'Troca de Computador / Setup', targetAmount: 7500, currentAmount: 4200 },
-};
-
-const LEGACY_SEED_DRAFTS: Record<string, string> = {
-  'draft-1': 'Ideias de Projetos & Objetivos',
-  'draft-2': 'Rascunho Rápido / Notas Diárias',
-};
-
-const LEGACY_SEED_BUDGETS: Record<string, number> = {
-  moradia: 2000,
-  alimentacao: 1200,
-  transporte: 450,
-  lazer: 600,
-  saude: 400,
-};
-
-function sanitizeLegacyPayload(parsed: any): Partial<AppDataPayload> {
-  if (!parsed || typeof parsed !== 'object') return {};
-
-  const isLegacyVersion = typeof parsed.version !== 'number' || parsed.version < CURRENT_DATA_VERSION;
-
-  const rawTasks: TaskItem[] = Array.isArray(parsed.tasks) ? parsed.tasks : [];
-  const rawTxs: Transaction[] = Array.isArray(parsed.transactions) ? parsed.transactions : [];
-  const rawGoals: FinancialGoal[] = Array.isArray(parsed.financialGoals) ? parsed.financialGoals : [];
-  const rawBudgets: BudgetLimit[] = Array.isArray(parsed.budgetLimits) ? parsed.budgetLimits : [];
-  const rawDrafts: DraftNote[] = Array.isArray(parsed.draftNotes) ? parsed.draftNotes : [];
-
-  if (!isLegacyVersion) {
-    return {
-      userName: typeof parsed.userName === 'string' ? parsed.userName : '',
-      onboardingCompleted: Boolean(parsed.onboardingCompleted),
-      tasks: rawTasks,
-      transactions: rawTxs,
-      financialGoals: rawGoals,
-      budgetLimits: rawBudgets,
-      draftNotes: rawDrafts,
-      dashboardWidgets: Array.isArray(parsed.dashboardWidgets) ? parsed.dashboardWidgets : DEFAULT_WIDGETS,
-      pendingBankNotifications: Array.isArray(parsed.pendingBankNotifications)
-        ? parsed.pendingBankNotifications
-        : [],
-    };
-  }
-
-  const tasks = rawTasks.filter((t) => LEGACY_SEED_TASK_TITLES[t.id] !== t.title);
-  const transactions = rawTxs.filter((tx) => {
-    const seed = LEGACY_SEED_TRANSACTIONS[tx.id];
-    return !(seed && seed.title === tx.title && seed.amount === tx.amount);
-  });
-  const financialGoals = rawGoals.filter((g) => {
-    const seed = LEGACY_SEED_GOALS[g.id];
-    return !(
-      seed &&
-      seed.title === g.title &&
-      seed.targetAmount === g.targetAmount &&
-      seed.currentAmount === g.currentAmount
-    );
-  });
-  const budgetLimits = rawBudgets.filter(
-    (b) => LEGACY_SEED_BUDGETS[b.category] !== b.monthlyLimit
-  );
-  const draftNotes = rawDrafts.filter((d) => LEGACY_SEED_DRAFTS[d.id] !== d.title);
-
-  return {
-    userName: typeof parsed.userName === 'string' ? parsed.userName : '',
-    onboardingCompleted: Boolean(parsed.onboardingCompleted),
-    tasks,
-    transactions,
-    financialGoals,
-    budgetLimits,
-    draftNotes,
-    dashboardWidgets: Array.isArray(parsed.dashboardWidgets) ? parsed.dashboardWidgets : DEFAULT_WIDGETS,
-    pendingBankNotifications: Array.isArray(parsed.pendingBankNotifications)
-      ? parsed.pendingBankNotifications
-      : [],
-  };
-}
 
 function loadInitialLocalPayload(): Partial<AppDataPayload> {
   try {
@@ -556,6 +462,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isOpen: false,
     title: '',
     message: '',
+  });
+
+  useBackHandler(confirmConfig.isOpen, () => {
+    if (confirmConfig.isProcessing) return false;
+    setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+    return true;
   });
 
   // Save to local storage on changes

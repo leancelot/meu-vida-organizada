@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useBackHandler } from '../../context/BackNavigationContext';
 import { hapticSelection } from '../../services/hapticsService';
 
 interface DriveSyncModalProps {
@@ -45,6 +46,12 @@ export const DriveSyncModal: React.FC<DriveSyncModalProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useBackHandler(isOpen, () => {
+    if (isSyncingAction) return false;
+    onClose();
+    return true;
+  });
 
   if (!isOpen) return null;
 

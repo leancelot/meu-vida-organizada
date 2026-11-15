@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useBackHandler } from '../../context/BackNavigationContext';
 import { hapticSelection } from '../../services/hapticsService';
 
 interface NotificationCenterModalProps {
@@ -32,6 +33,11 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
     tasks,
     calendarEvents,
   } = useApp();
+
+  useBackHandler(isOpen, () => {
+    onClose();
+    return true;
+  });
 
   if (!isOpen) return null;
 

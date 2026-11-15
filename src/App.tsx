@@ -7,10 +7,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Fingerprint, Lock } from 'lucide-react';
-import { syncNativeSystemBars } from './services/systemAppearanceBridge';
+import { notifyNativeAppReady, syncNativeSystemBars } from './services/systemAppearanceBridge';
 import { authenticateFinanceAccess, isBiometricSupportedOnPlatform } from './services/biometricLockBridge';
 import { hapticImpactLight, hapticSuccess } from './services/hapticsService';
 import { AppProvider, useApp } from './context/AppContext';
+import { BackNavigationProvider, useBackNavigation } from './context/BackNavigationContext';
 import { Header } from './components/Header';
 import { MobileNav } from './components/MobileNav';
 import { DashboardView } from './components/Dashboard/DashboardView';
@@ -26,6 +27,7 @@ import { NativeConnectBridge } from './components/Auth/NativeConnectBridge';
 
 const MainApp: React.FC = () => {
   const { onboardingCompleted, theme, financeLockEnabled } = useApp();
+  const backNavigation = useBackNavigation();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [agendaQuickOpen, setAgendaQuickOpen] = useState<'task' | 'event' | null>(null);
   const [financeQuickOpen, setFinanceQuickOpen] = useState<'new-transaction' | 'scan-receipt' | null>(null);
@@ -159,19 +161,31 @@ const MainApp: React.FC = () => {
     void syncNativeSystemBars(theme, !onboardingCompleted);
   }, [theme, onboardingCompleted]);
 
-  // Hardware Back Button no Android nativo
+  // Sinaliza para o Splash Screen nativo que o primeiro quadro da interface já foi pintado
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+    const rafId = window.requestAnimationFrame(() => {
+      if (!cancelled) {
+        void notifyNativeAppReady();
+      }
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  // Hardware Back Button no Android nativo (LIFO: fecha modal/sheet mais recente -> volta para Início -> sai)
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     let sub: any = null;
     CapApp.addListener('backButton', () => {
-      if (isQuickMenuOpen) {
-        setIsQuickMenuOpen(false);
-      } else if (isNotificationCenterOpen) {
-        setIsNotificationCenterOpen(false);
-      } else if (isSyncModalOpen) {
-        setIsSyncModalOpen(false);
-      } else if (currentTab !== 'dashboard') {
+      if (backNavigation?.handleTopBackPress()) {
+        return;
+      }
+      if (currentTab !== 'dashboard') {
         setCurrentTab('dashboard');
       } else {
         CapApp.exitApp();
@@ -185,7 +199,7 @@ const MainApp: React.FC = () => {
     return () => {
       if (sub && sub.remove) sub.remove();
     };
-  }, [isQuickMenuOpen, isNotificationCenterOpen, isSyncModalOpen, currentTab]);
+  }, [backNavigation, currentTab]);
 
   if (!onboardingCompleted) {
     return <OnboardingView />;
@@ -317,8 +331,10 @@ export default function App() {
     new URLSearchParams(window.location.search).get('connect_native') === '1';
 
   return (
-    <AppProvider>
-      {isConnectNative ? <NativeConnectBridge /> : <MainApp />}
-    </AppProvider>
+    <BackNavigationProvider>
+      <AppProvider>
+        {isConnectNative ? <NativeConnectBridge /> : <MainApp />}
+      </AppProvider>
+    </BackNavigationProvider>
   );
 }

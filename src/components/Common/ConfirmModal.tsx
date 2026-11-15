@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, Trash2, X } from 'lucide-react';
 import { hapticSelection } from '../../services/hapticsService';
+import { useBackHandler } from '../../context/BackNavigationContext';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -27,6 +28,12 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  useBackHandler(isOpen, () => {
+    if (isProcessing) return false;
+    onCancel();
+    return true;
+  });
+
   if (!isOpen) return null;
 
   return (

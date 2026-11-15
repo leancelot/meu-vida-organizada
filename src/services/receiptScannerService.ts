@@ -43,7 +43,14 @@ export class ReceiptScanError extends Error {
 
 const DEFAULT_HOSTED_URL =
   'https://ais-pre-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app';
-const SERVER_TIMEOUT_MS = 22000;
+const SERVER_TIMEOUT_MS = 16000;
+const MAX_UPLOAD_DIMENSION = 1600;
+
+let endpoint404InSession = false;
+
+export interface ScanReceiptOptions {
+  forceServerRetry?: boolean;
+}
 
 function sanitizeSnippet(raw: string): string {
   const withoutHtml = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -119,11 +126,14 @@ function sanitizeParsedReceiptData(data: Partial<ParsedReceiptData>): ParsedRece
 }
 
 /**
- * Sends receipt image to Gemini server endpoint, capturing rich diagnostics and
+ * Sends receipt image to Gemini server endpoint, capturing diagnostics and
  * automatically falling back to on-device Offline OCR if the server fails.
  */
-export async function scanReceiptWithAI(file: File): Promise<ReceiptScanResult> {
-  const base64 = await fileToBase64(file);
+export async function scanReceiptWithAI(
+  file: File,
+  options: ScanReceiptOptions = {}
+): Promise<ReceiptScanResult> {
+  const prepared = await prepareReceiptImage(file);
 
   const isLocalOrigin =
     typeof window !== 'undefined' &&
@@ -148,92 +158,105 @@ export async function scanReceiptWithAI(file: File): Promise<ReceiptScanResult> 
     offlineStatus: 'not_needed',
   };
 
+  if (options.forceServerRetry) {
+    endpoint404InSession = false;
+  }
+
   let serverFailedMessage = '';
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT_MS);
 
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        imageBase64: base64,
-        mimeType: file.type || 'image/jpeg',
-      }),
-      signal: controller.signal,
-    });
+  if (endpoint404InSession) {
+    diagnostics.httpStatus = 404;
+    diagnostics.errorCode = 'ENDPOINT_NOT_FOUND';
+    serverFailedMessage =
+      'O servidor de leitura por IA não respondeu neste endereço (HTTP 404).';
+  } else {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SERVER_TIMEOUT_MS);
 
-    diagnostics.httpStatus = res.status;
-    const rawBody = await res.text().catch(() => '');
-    const contentType = res.headers.get('content-type') || '';
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64: prepared.dataUrl,
+          mimeType: prepared.mimeType,
+        }),
+        signal: controller.signal,
+      });
 
-    if (res.ok && contentType.includes('application/json')) {
-      const jsonData = JSON.parse(rawBody || '{}');
-      diagnostics.serverErrorSummary = 'OK';
-      return {
-        data: sanitizeParsedReceiptData(jsonData),
-        source: 'ai',
-        diagnostics,
-      };
-    }
+      diagnostics.httpStatus = res.status;
+      const rawBody = await res.text().catch(() => '');
+      const contentType = res.headers.get('content-type') || '';
 
-    if (rawBody) {
-      diagnostics.serverResponseSnippet = sanitizeSnippet(rawBody);
-    }
-
-    let parsedErrorMsg = '';
-    if (rawBody.trim().startsWith('{')) {
-      try {
-        const parsedErr = JSON.parse(rawBody);
-        parsedErrorMsg = typeof parsedErr?.error === 'string' ? parsedErr.error : '';
-      } catch {
-        // ignore JSON parse failure
+      if (res.ok && contentType.includes('application/json')) {
+        const jsonData = JSON.parse(rawBody || '{}');
+        diagnostics.serverErrorSummary = 'OK';
+        return {
+          data: sanitizeParsedReceiptData(jsonData),
+          source: 'ai',
+          diagnostics,
+        };
       }
-    }
 
-    if (res.status === 404) {
-      diagnostics.errorCode = 'ENDPOINT_NOT_FOUND';
-      serverFailedMessage =
-        'O servidor de leitura por IA não respondeu neste endereço (HTTP 404).';
-    } else if (
-      res.status === 302 ||
-      res.status === 401 ||
-      res.status === 403 ||
-      contentType.includes('text/html')
-    ) {
-      diagnostics.errorCode = 'AUTH_OR_HTML_RESPONSE';
-      serverFailedMessage =
-        'O servidor exigiu autenticação ou retornou página HTML em vez de JSON.';
-    } else if (
-      res.status === 503 ||
-      parsedErrorMsg.includes('"code":503') ||
-      parsedErrorMsg.includes('UNAVAILABLE') ||
-      parsedErrorMsg.toLowerCase().includes('high demand')
-    ) {
-      diagnostics.errorCode = 'MODEL_UNAVAILABLE_503';
-      serverFailedMessage =
-        'O serviço de leitura por IA está com alta demanda no momento (503).';
-    } else if (res.status === 429 || parsedErrorMsg.includes('RESOURCE_EXHAUSTED')) {
-      diagnostics.errorCode = 'RATE_LIMIT_429';
-      serverFailedMessage = 'Limite temporário de leituras atingido na IA (429).';
-    } else if (parsedErrorMsg && !parsedErrorMsg.trim().startsWith('{')) {
-      diagnostics.errorCode = `HTTP_${res.status}`;
-      serverFailedMessage = parsedErrorMsg;
-    } else {
-      diagnostics.errorCode = `HTTP_${res.status}`;
-      serverFailedMessage = `Falha na resposta do servidor (HTTP ${res.status}).`;
+      if (rawBody) {
+        diagnostics.serverResponseSnippet = sanitizeSnippet(rawBody);
+      }
+
+      let parsedErrorMsg = '';
+      if (rawBody.trim().startsWith('{')) {
+        try {
+          const parsedErr = JSON.parse(rawBody);
+          parsedErrorMsg = typeof parsedErr?.error === 'string' ? parsedErr.error : '';
+        } catch {
+          // ignore JSON parse failure
+        }
+      }
+
+      if (res.status === 404) {
+        endpoint404InSession = true;
+        diagnostics.errorCode = 'ENDPOINT_NOT_FOUND';
+        serverFailedMessage =
+          'O servidor de leitura por IA não respondeu neste endereço (HTTP 404).';
+      } else if (
+        res.status === 302 ||
+        res.status === 401 ||
+        res.status === 403 ||
+        contentType.includes('text/html')
+      ) {
+        diagnostics.errorCode = 'AUTH_OR_HTML_RESPONSE';
+        serverFailedMessage =
+          'O servidor exigiu autenticação ou retornou página HTML em vez de JSON.';
+      } else if (
+        res.status === 503 ||
+        parsedErrorMsg.includes('"code":503') ||
+        parsedErrorMsg.includes('UNAVAILABLE') ||
+        parsedErrorMsg.toLowerCase().includes('high demand')
+      ) {
+        diagnostics.errorCode = 'MODEL_UNAVAILABLE_503';
+        serverFailedMessage =
+          'O serviço de leitura por IA está com alta demanda no momento (503).';
+      } else if (res.status === 429 || parsedErrorMsg.includes('RESOURCE_EXHAUSTED')) {
+        diagnostics.errorCode = 'RATE_LIMIT_429';
+        serverFailedMessage = 'Limite temporário de leituras atingido na IA (429).';
+      } else if (parsedErrorMsg && !parsedErrorMsg.trim().startsWith('{')) {
+        diagnostics.errorCode = `HTTP_${res.status}`;
+        serverFailedMessage = parsedErrorMsg;
+      } else {
+        diagnostics.errorCode = `HTTP_${res.status}`;
+        serverFailedMessage = `Falha na resposta do servidor (HTTP ${res.status}).`;
+      }
+    } catch (err: any) {
+      const isAbort = err?.name === 'AbortError';
+      diagnostics.errorCode = isAbort ? 'TIMEOUT' : 'NETWORK_ERROR';
+      diagnostics.serverResponseSnippet = err?.message ? sanitizeSnippet(String(err.message)) : '';
+      serverFailedMessage = isAbort
+        ? 'Tempo limite esgotado ao aguardar resposta do servidor de IA.'
+        : 'Sem conexão com o servidor de leitura por IA.';
+    } finally {
+      clearTimeout(timeoutId);
     }
-  } catch (err: any) {
-    const isAbort = err?.name === 'AbortError';
-    diagnostics.errorCode = isAbort ? 'TIMEOUT' : 'NETWORK_ERROR';
-    diagnostics.serverResponseSnippet = err?.message ? sanitizeSnippet(String(err.message)) : '';
-    serverFailedMessage = isAbort
-      ? 'Tempo limite esgotado ao aguardar resposta do servidor de IA.'
-      : 'Sem conexão com o servidor de leitura por IA.';
-  } finally {
-    clearTimeout(timeoutId);
   }
 
   diagnostics.serverErrorSummary = serverFailedMessage;
@@ -241,7 +264,7 @@ export async function scanReceiptWithAI(file: File): Promise<ReceiptScanResult> 
   // Contingency Step: Run on-device Offline OCR automatically
   diagnostics.offlineAttempted = true;
   try {
-    const ocr = await extractReceiptTextOffline(base64);
+    const ocr = await extractReceiptTextOffline(prepared.dataUrl);
     diagnostics.offlineEngine = ocr.engine;
 
     const parsedOffline = parseReceiptOcrText(ocr.text);
@@ -261,7 +284,9 @@ export async function scanReceiptWithAI(file: File): Promise<ReceiptScanResult> 
       : 'Nenhum texto legível encontrado na foto';
   } catch (ocrErr: any) {
     diagnostics.offlineStatus = 'failed';
-    diagnostics.offlineDetail = ocrErr?.message ? sanitizeSnippet(String(ocrErr.message)) : 'Falha no motor OCR';
+    diagnostics.offlineDetail = ocrErr?.message
+      ? sanitizeSnippet(String(ocrErr.message))
+      : 'Falha no motor OCR';
   }
 
   const combinedMessage =
@@ -270,6 +295,49 @@ export async function scanReceiptWithAI(file: File): Promise<ReceiptScanResult> 
       : `${serverFailedMessage} A leitura offline de contingência não pôde processar esta imagem.`;
 
   throw new ReceiptScanError(combinedMessage, diagnostics);
+}
+
+async function prepareReceiptImage(file: File): Promise<{ dataUrl: string; mimeType: string }> {
+  const originalDataUrl = await fileToBase64(file);
+  const originalMime = file.type || 'image/jpeg';
+
+  if (typeof document === 'undefined' || typeof Image === 'undefined') {
+    return { dataUrl: originalDataUrl, mimeType: originalMime };
+  }
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('Image load failed'));
+      element.src = originalDataUrl;
+    });
+
+    const maxSide = Math.max(img.width, img.height);
+    if (maxSide <= MAX_UPLOAD_DIMENSION && file.size <= 700 * 1024) {
+      return { dataUrl: originalDataUrl, mimeType: originalMime };
+    }
+
+    const scale = maxSide > MAX_UPLOAD_DIMENSION ? MAX_UPLOAD_DIMENSION / maxSide : 1;
+    const targetWidth = Math.max(1, Math.round(img.width * scale));
+    const targetHeight = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return { dataUrl: originalDataUrl, mimeType: originalMime };
+    }
+
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+    const compressedUrl = canvas.toDataURL('image/jpeg', 0.86);
+    return compressedUrl.length < originalDataUrl.length
+      ? { dataUrl: compressedUrl, mimeType: 'image/jpeg' }
+      : { dataUrl: originalDataUrl, mimeType: originalMime };
+  } catch {
+    return { dataUrl: originalDataUrl, mimeType: originalMime };
+  }
 }
 
 function fileToBase64(file: File): Promise<string> {

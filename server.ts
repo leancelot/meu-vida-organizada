@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 
 dotenv.config();
 
@@ -121,6 +121,18 @@ function mapReceiptErrorToPortuguese(info: { code: number; status: string; messa
 }
 
 /**
+ * Health check endpoint to verify backend API availability & Gemini config
+ */
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'vidaorganizada-api',
+    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * Endpoint for AI Receipt / Nota Fiscal OCR & Financial extraction
  */
 app.post('/api/gemini/parse-receipt', async (req, res) => {
@@ -165,6 +177,9 @@ Extraia com a máxima precisão os dados financeiros para lançamento de despesa
         config: {
           systemInstruction:
             'Você é um assistente especialista em leitura de documentos fiscais e extração de recibos financeiros brasileiros e internacionais. Seja preciso nos valores, datas e estabelecimentos.',
+          ...(model === RECEIPT_PRIMARY_MODEL
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+            : {}),
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -247,6 +262,10 @@ Extraia com a máxima precisão os dados financeiros para lançamento de despesa
       error: mapped.userMessage,
     });
   }
+});
+
+app.use('/api/*', (_req, res) => {
+  res.status(404).json({ error: 'Rota de API não encontrada.' });
 });
 
 async function startServer() {

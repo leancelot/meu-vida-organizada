@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useBackHandler } from '../../context/BackNavigationContext';
 import { GoogleCalendarEvent, TaskItem } from '../../types';
 import { hapticImpactLight, hapticSelection } from '../../services/hapticsService';
 
@@ -133,6 +134,21 @@ export const AgendaTasksView: React.FC<AgendaTasksViewProps> = ({
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+
+  useBackHandler(isTaskModalOpen, () => {
+    setIsTaskModalOpen(false);
+    return true;
+  });
+
+  useBackHandler(Boolean(editingTask), () => {
+    setEditingTask(null);
+    return true;
+  });
+
+  useBackHandler(isEventModalOpen, () => {
+    setIsEventModalOpen(false);
+    return true;
+  });
 
   // Create Task state (no fictitious examples)
   const [newTitle, setNewTitle] = useState('');

@@ -2,6 +2,7 @@ import { Capacitor, SystemBars, SystemBarsStyle, registerPlugin } from '@capacit
 import { StatusBar, Style } from '@capacitor/status-bar';
 
 interface SystemAppearancePlugin {
+  notifyAppReady(): Promise<void>;
   setTheme(options: {
     theme: 'light' | 'dark';
     barColor: string;
@@ -10,6 +11,15 @@ interface SystemAppearancePlugin {
 }
 
 const SystemAppearance = registerPlugin<SystemAppearancePlugin>('SystemAppearance');
+
+export async function notifyNativeAppReady(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await SystemAppearance.notifyAppReady();
+  } catch {
+    // Safe fallback when plugin is not present
+  }
+}
 
 export async function syncNativeSystemBars(
   theme: 'light' | 'dark',

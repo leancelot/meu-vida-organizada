@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useBackHandler } from '../../context/BackNavigationContext';
 import { hapticImpactLight, hapticSelection } from '../../services/hapticsService';
 import { parseBankNotificationText } from '../../services/bankNotificationParser';
 import { FinanceCategory, PendingBankNotification, Transaction, TransactionType } from '../../types';
@@ -141,6 +142,31 @@ export const FinanceView: React.FC<FinanceViewProps> = ({
   // Budget drafts when editing limits
   const [budgetDrafts, setBudgetDrafts] = useState<Record<string, string>>({});
   const [csvFeedback, setCsvFeedback] = useState<string | null>(null);
+
+  useBackHandler(isPasteBankModalOpen, () => {
+    setIsPasteBankModalOpen(false);
+    return true;
+  });
+
+  useBackHandler(isAddModalOpen, () => {
+    setIsAddModalOpen(false);
+    return true;
+  });
+
+  useBackHandler(isBudgetModalOpen, () => {
+    setIsBudgetModalOpen(false);
+    return true;
+  });
+
+  useBackHandler(isGoalModalOpen, () => {
+    setIsGoalModalOpen(false);
+    return true;
+  });
+
+  useBackHandler(Boolean(addingToGoal), () => {
+    setAddingToGoal(null);
+    return true;
+  });
 
   useEffect(() => {
     if (!quickOpenAction) return;

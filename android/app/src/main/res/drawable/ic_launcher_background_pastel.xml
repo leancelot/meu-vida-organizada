@@ -20,6 +20,6 @@
         </aapt:attr>
     </path>
     <path
-        android:pathData="M54,14 A40,40 0 1,1 53.99,14 Z"
+        android:pathData="M54,16 A38,38 0 1,1 53.99,16 Z"
         android:fillColor="#18FFFFFF" />
 </vector>

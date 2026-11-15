@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useBackHandler } from '../../context/BackNavigationContext';
 import { hapticImpactLight, hapticSelection } from '../../services/hapticsService';
 import { ReceiptScannerModal } from '../Finance/ReceiptScannerModal';
 
@@ -40,6 +41,16 @@ export const QuickActionFab: React.FC<QuickActionFabProps> = ({
   const [isReceiptModal, setIsReceiptModal] = useState(false);
   const [quickNoteText, setQuickNoteText] = useState('');
   const [pinOnHome, setPinOnHome] = useState(true);
+
+  useBackHandler(isOpen, () => {
+    setOpen(false);
+    return true;
+  });
+
+  useBackHandler(isQuickNoteModal, () => {
+    setIsQuickNoteModal(false);
+    return true;
+  });
 
   const handleAction = (tab: string) => {
     setCurrentTab(tab);

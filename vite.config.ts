@@ -8,7 +8,7 @@ export default defineConfig(() => {
   // Se o arquivo local firebase-applet-config.json existir no disco (ignorado pelo git),
   // carrega suas chaves em tempo de execução sem expor no repositório.
   let localConfig: Record<string, string> = {};
-  const configPath = path.resolve(__dirname, 'firebase-applet-config.json');
+  const configPath = path.resolve(import.meta.dirname, 'firebase-applet-config.json');
   if (fs.existsSync(configPath)) {
     try {
       localConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -20,6 +20,9 @@ export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
+      'import.meta.env.VITE_APP_URL': JSON.stringify(
+        process.env.VITE_APP_URL || process.env.APP_URL || ''
+      ),
       'import.meta.env.VITE_FIREBASE_API_KEY': JSON.stringify(
         process.env.VITE_FIREBASE_API_KEY || localConfig.apiKey || ''
       ),
@@ -44,7 +47,7 @@ export default defineConfig(() => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
     },
     server: {

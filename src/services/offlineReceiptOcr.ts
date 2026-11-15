@@ -78,30 +78,55 @@ function parseOcrCurrency(raw: string): number | null {
 }
 
 function extractAmountFromReceiptLines(lines: string[]): number {
-  const priorityLinePatterns = [
-    /valor\s*a\s*pagar/i,
-    /total\s*a\s*pagar/i,
-    /valor\s*total/i,
-    /\btotal\b/i,
-    /vlr\.?\s*total/i,
-    /subtotal/i,
+  const priorityLineGroups: RegExp[][] = [
+    [
+      /valor\s*a\s*pagar/i,
+      /total\s*a\s*pagar/i,
+      /vlr\.?\s*a\s*pagar/i,
+      /total\s*l[ií]quido/i,
+      /valor\s*l[ií]quido/i,
+      /total\s*da\s*nota/i,
+      /valor\s*total/i,
+      /vlr\.?\s*total/i,
+    ],
+    [/\btotal\b/i],
+    [
+      /\bcart[aã]o\b/i,
+      /\bcr[eé]dito\b/i,
+      /\bd[eé]bito\b/i,
+      /\bpix\b/i,
+      /\bvalor\s*pago\b/i,
+    ],
+    [/subtotal/i],
   ];
-  const ignoreLinePattern = /\btroco\b|\bdesconto\b|\bcnpj\b|\bcpf\b|\bchave\b|\bcep\b|\bfone\b|\btel\b/i;
-  const amountRegex = /(?:R\$\s*)?(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g;
 
-  // Pass 1: Look at lines with explicit Total labels (or the immediate next line)
-  for (const pattern of priorityLinePatterns) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (ignoreLinePattern.test(line)) continue;
-      if (!pattern.test(line)) continue;
+  const ignoreLinePattern =
+    /\btroco\b|\bdesconto\b|\bacr[eé]scimo\b|\btributo|\bimposto|\blei\s*12\.?741|\bval\.?\s*aprox|\bicms\b|\bcofins\b|\bpis\b|\bcnpj\b|\bcpf\b|\bchave\b|\bcep\b|\bfone\b|\btel\b|\bvl\.?\s*unit|\bunit[aá]rio/i;
+  const amountRegex = /(?:R\$\s*)?(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?!\d)/g;
 
-      const candidateText = `${line} ${lines[i + 1] || ''}`;
-      const matches = [...candidateText.matchAll(amountRegex)];
-      if (matches.length > 0) {
-        const lastMatch = matches[matches.length - 1][1];
-        const parsed = parseOcrCurrency(lastMatch);
-        if (parsed !== null) return parsed;
+  // Pass 1: Look at lines with explicit Total / Payment labels (or the immediate next line)
+  for (const group of priorityLineGroups) {
+    for (const pattern of group) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (ignoreLinePattern.test(line)) continue;
+        if (/subtotal/i.test(line) && !pattern.source.includes('subtotal')) continue;
+        if (!pattern.test(line)) continue;
+
+        const sameLineMatches = [...line.matchAll(amountRegex)];
+        if (sameLineMatches.length > 0) {
+          const parsed = parseOcrCurrency(sameLineMatches[sameLineMatches.length - 1][1]);
+          if (parsed !== null) return parsed;
+        }
+
+        const nextLine = lines[i + 1] || '';
+        if (!ignoreLinePattern.test(nextLine)) {
+          const nextLineMatches = [...nextLine.matchAll(amountRegex)];
+          if (nextLineMatches.length > 0) {
+            const parsed = parseOcrCurrency(nextLineMatches[nextLineMatches.length - 1][1]);
+            if (parsed !== null) return parsed;
+          }
+        }
       }
     }
   }
@@ -110,7 +135,7 @@ function extractAmountFromReceiptLines(lines: string[]): number {
   const rDollarAmounts: number[] = [];
   for (const line of lines) {
     if (ignoreLinePattern.test(line)) continue;
-    const matches = [...line.matchAll(/R\$\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/gi)];
+    const matches = [...line.matchAll(/R\$\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?!\d)/gi)];
     for (const m of matches) {
       const parsed = parseOcrCurrency(m[1]);
       if (parsed !== null) rDollarAmounts.push(parsed);
@@ -140,8 +165,9 @@ function extractAmountFromReceiptLines(lines: string[]): number {
 }
 
 function extractReceiptDate(text: string): string {
-  const match = text.match(/\b(\d{2})[\/\-](\d{2})[\/\-](\d{2,4})\b/);
-  if (match) {
+  // Check DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, DD/MM/YY first
+  const brMatches = [...text.matchAll(/\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})\b/g)];
+  for (const match of brMatches) {
     const day = Number(match[1]);
     const month = Number(match[2]);
     let year = Number(match[3]);
@@ -150,17 +176,32 @@ function extractReceiptDate(text: string): string {
       return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }
+
+  // Also check ISO YYYY-MM-DD
+  const isoMatch = text.match(/\b(202\d|203[0-5])-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    }
+  }
+
   return new Date().toISOString().split('T')[0];
 }
 
 function extractStoreTitle(lines: string[]): string {
   const skipLine =
-    /\b(?:danfe|nfc-?e|cupom\s*fiscal|documento\s*auxiliar|extrato|sat|cnpj|cpf|insc|ie:|im:|rua\b|av\.?\b|avenida\b|rodovia\b|cep\b|fone\b|tel\b|www\.|http|consumidor|qr\s*code|chave\s*de\s*acesso)\b/i;
+    /\b(?:danfe|nfc-?e|cupom\s*fiscal|documento\s*auxiliar|extrato|sat|cnpj|cpf|insc|ie\s*:|im\s*:|rua\b|r\.\s|av\.?\b|avenida\b|alameda\b|rodovia\b|rod\.?\b|estrada\b|bairro\b|cep\b|fone\b|tel\b|sac\b|www\.|http|consumidor|sem\s+valor\s+fiscal|qr\s*code|chave\s*de\s*acesso|caixa\b|pdv\b|operador|item\s+c[oó]d|qtd|tributos|lei\s*12)/i;
 
-  for (const line of lines.slice(0, 8)) {
-    const cleaned = line.replace(/\s+/g, ' ').trim();
+  for (const line of lines.slice(0, 10)) {
+    const cleaned = line
+      .replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+|[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     if (cleaned.length < 3 || cleaned.length > 60) continue;
     if (/^[\d\W]+$/.test(cleaned)) continue;
+    if (/^(?:brasil|sao paulo|sp|rj|mg|rs|pr|sc|ba|ce|df|go|pe)$/i.test(cleaned)) continue;
     if (skipLine.test(cleaned)) continue;
     return cleaned;
   }
@@ -170,8 +211,12 @@ function extractStoreTitle(lines: string[]): string {
 
 function inferReceiptPaymentMethod(text: string): Transaction['paymentMethod'] {
   if (/\bpix\b/i.test(text)) return 'pix';
-  if (/\bd[eé]bito\b/i.test(text)) return 'cartao_debito';
-  if (/\bcr[eé]dito\b|\bvisa\b|\bmaster(?:card)?\b|\belo\b|\bamex\b|\bparcel/i.test(text)) {
+  if (/\bd[eé]bito\b|\bcart[aã]o\s*deb/i.test(text)) return 'cartao_debito';
+  if (
+    /\bcr[eé]dito\b|\bcart[aã]o\s*cred|\bvisa\b|\bmaster(?:card)?\b|\belo\b|\bamex\b|\bhipercard\b|\bparcel|\bvale\s*aliment|\bvr\b|\balelo\b|\bsodexo\b/i.test(
+      text
+    )
+  ) {
     return 'cartao_credito';
   }
   if (/\bdinheiro\b|\besp[eé]cie\b/i.test(text)) return 'dinheiro';
@@ -181,37 +226,37 @@ function inferReceiptPaymentMethod(text: string): Transaction['paymentMethod'] {
 
 function inferReceiptCategory(text: string): FinanceCategory {
   if (
-    /\b(?:supermercado|mercado|atacad|padaria|a[cç]ougue|hortifruti|restaurante|lanchonete|caf[eé]|pizza|burger|p[aã]o|leite|arroz|feij[aã]o|aliment|bebida|refrigerante)\b/i.test(
+    /\b(?:supermercado|mercado|minimercado|atacad[aã]o|assa[ií]|carrefour|p[aã]o\s*de\s*a[cç][uú]car|extra|padaria|panificadora|confeitaria|a[cç]ougue|hortifruti|sacol[aã]o|restaurante|churrascaria|lanchonete|caf[eé]|cafeteria|pizza|pizzaria|burger|hamburgueria|sorveteria|p[aã]o|leite|arroz|feij[aã]o|aliment|bebida|refrigerante|cerveja)\b/i.test(
       text
     )
   ) {
     return 'alimentacao';
   }
   if (
-    /\b(?:posto|combust[ií]vel|gasolina|etanol|diesel|estacionamento|ped[aá]gio|uber|auto\s*posto)\b/i.test(
+    /\b(?:posto|auto\s*posto|combust[ií]vel|gasolina|etanol|[aá]lcool|diesel|gnv|ipiranga|shell|petrobras|br\s*mania|estacionamento|ped[aá]gio|sem\s*parar|uber|99app|oficina|troca\s*de\s*[oó]leo|pneu)\b/i.test(
       text
     )
   ) {
     return 'transporte';
   }
   if (
-    /\b(?:farm[aá]cia|drogaria|droga\s*raia|drogasil|medicamento|rem[eé]dio|cl[ií]nica|laborat[oó]rio|hospital|consulta)\b/i.test(
+    /\b(?:farm[aá]cia|drogaria|droga\s*raia|drogasil|pague\s*menos|panvel|ultrafarma|medicamento|rem[eé]dio|cl[ií]nica|consult[oó]rio|laborat[oó]rio|hospital|odonto|dentista|[oó]tica|consulta)\b/i.test(
       text
     )
   ) {
     return 'saude';
   }
   if (
-    /\b(?:energia|enel|cemig|copel|light|[aá]gua|sabesp|internet|aluguel|condom[ií]nio|ferragem|constru[cç][aã]o)\b/i.test(
+    /\b(?:energia|enel|cemig|copel|cpfl|celesc|equatorial|light|[aá]gua|sabesp|sanepar|copasa|comg[aá]s|internet|aluguel|condom[ií]nio|leroy|telhanorte|ferragem|constru[cç][aã]o)\b/i.test(
       text
     )
   ) {
     return 'moradia';
   }
-  if (/\b(?:livraria|papelaria|livro|escola|faculdade|curso)\b/i.test(text)) {
+  if (/\b(?:livraria|papelaria|kalunga|livro|caderno|escola|col[eé]gio|faculdade|curso)\b/i.test(text)) {
     return 'educacao';
   }
-  if (/\b(?:cinema|ingresso|teatro|show|bar\b|hotel|lazer)\b/i.test(text)) {
+  if (/\b(?:cinema|cinemark|kinoplex|ingresso|teatro|show|bar\b|pub\b|hotel|pousada|lazer|petz|cobasi)\b/i.test(text)) {
     return 'lazer';
   }
   return 'outros';
@@ -237,8 +282,18 @@ export function parseReceiptOcrText(rawText: string): ParsedReceiptFields | null
   const paymentMethod = inferReceiptPaymentMethod(fullText);
   const category = inferReceiptCategory(fullText);
 
+  const noiseNotePattern =
+    /\b(?:cnpj|cpf|ie\s*:|im\s*:|cep\b|danfe|nfc-?e|sat\b|cupom|documento\s*auxiliar|chave\s*de\s*acesso|qr\s*code|tributos|lei\s*12|troco|subtotal|valor\s*a\s*pagar|protocolo|autoriza[cç][aã]o)\b|\d{12,}/i;
+
   const summaryLines = lines
-    .filter((l) => l !== title && l.length >= 4 && l.length <= 55 && !/^[\d\W]+$/.test(l))
+    .filter(
+      (l) =>
+        l !== title &&
+        l.length >= 4 &&
+        l.length <= 55 &&
+        !/^[\d\W.,/:;-]+$/.test(l) &&
+        !noiseNotePattern.test(l)
+    )
     .slice(0, 3);
 
   return {

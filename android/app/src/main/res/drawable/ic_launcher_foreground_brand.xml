@@ -4,12 +4,12 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Primary 4-point brand sparkle centered in adaptive icon safe zone -->
+    <!-- Brilho principal 4 pontas centralizado na zona segura (66dp) -->
     <path
         android:fillColor="#FFFDFB"
-        android:pathData="M50,29 C51.6,41.5 57.5,47.4 70,49 C57.5,50.6 51.6,56.5 50,69 C48.4,56.5 42.5,50.6 30,49 C42.5,47.4 48.4,41.5 50,29 Z" />
-    <!-- Secondary warm sparkle accent -->
+        android:pathData="M49,28 C50.6,40.5 56.5,46.4 69,48 C56.5,49.6 50.6,55.5 49,68 C47.4,55.5 41.5,49.6 29,48 C41.5,46.4 47.4,40.5 49,28 Z" />
+    <!-- Brilho secundário em creme pastel -->
     <path
         android:fillColor="#FCE8DF"
-        android:pathData="M71,59 C71.9,65.2 74.8,68.1 81,69 C74.8,69.9 71.9,72.8 71,79 C70.1,72.8 67.2,69.9 61,69 C67.2,68.1 70.1,65.2 71,59 Z" />
+        android:pathData="M70,58 C70.9,64.2 73.8,67.1 80,68 C73.8,68.9 70.9,71.8 70,78 C69.1,71.8 66.2,68.9 60,68 C66.2,67.1 69.1,64.2 70,58 Z" />
 </vector>

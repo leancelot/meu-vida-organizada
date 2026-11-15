@@ -13,9 +13,7 @@ import {
   Receipt,
   RefreshCw,
   Send,
-  Sparkles,
   Upload,
-  WifiOff,
   X,
 } from 'lucide-react';
 import {
@@ -25,6 +23,7 @@ import {
   scanReceiptWithAI,
 } from '../../services/receiptScannerService';
 import { useApp } from '../../context/AppContext';
+import { useBackHandler } from '../../context/BackNavigationContext';
 import { hapticSelection } from '../../services/hapticsService';
 import { FinanceCategory, Transaction } from '../../types';
 import confetti from 'canvas-confetti';
@@ -45,7 +44,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const [lastFile, setLastFile] = useState<File | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<ReceiptScanDiagnostics | null>(null);
-  const [scanSource, setScanSource] = useState<'ai' | 'offline_ocr'>('ai');
+  const [scanSource, setScanSource] = useState<'ai' | 'offline_ocr' | 'manual'>('ai');
   const [isLogExpanded, setIsLogExpanded] = useState(false);
   const [copiedLog, setCopiedLog] = useState(false);
 
@@ -60,9 +59,15 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  useBackHandler(isOpen, () => {
+    if (step === 'scanning') return false;
+    handleClose();
+    return true;
+  });
+
   if (!isOpen) return null;
 
-  const handleFileSelected = async (file: File) => {
+  const handleFileSelected = async (file: File, forceServerRetry = false) => {
     if (!file) return;
 
     if (selectedImagePreview) {
@@ -79,7 +84,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     setStep('scanning');
 
     try {
-      const result = await scanReceiptWithAI(file);
+      const result = await scanReceiptWithAI(file, { forceServerRetry });
       const { data, source, diagnostics: scanDiag } = result;
 
       setTitle(data.title);
@@ -115,7 +120,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
 
   const handleRetryScan = () => {
     if (!lastFile) return;
-    handleFileSelected(lastFile);
+    handleFileSelected(lastFile, true);
   };
 
   const handleManualFallback = () => {
@@ -126,7 +131,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
     setCategory('alimentacao');
     setPaymentMethod('cartao_credito');
     setNotes('');
-    setScanSource('offline_ocr');
+    setScanSource('manual');
     setStep('review');
   };
 
@@ -212,7 +217,9 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         notes.trim() ||
         (scanSource === 'offline_ocr'
           ? 'Lançado via leitura offline de Nota Fiscal'
-          : 'Lançado automaticamente via leitura de Nota Fiscal por IA'),
+          : scanSource === 'manual'
+            ? 'Lançado manualmente pelo leitor de Nota Fiscal'
+            : 'Lançado automaticamente via leitura de Nota Fiscal por IA'),
       recurring: false,
     });
 
@@ -324,17 +331,11 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
             <Receipt className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                Leitor de Nota Fiscal com IA
-              </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                Gemini + Offline OCR
-              </span>
-            </div>
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+              Leitor de Nota Fiscal
+            </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Fotografe ou envie o comprovante para lançar automaticamente sua despesa
+              Fotografe ou envie o comprovante para lançar sua despesa
             </p>
           </div>
         </div>
@@ -355,7 +356,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleRetryScan}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold cursor-pointer transition-colors"
+                    className="pressable inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold cursor-pointer"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>Tentar novamente</span>
@@ -364,7 +365,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleManualFallback}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] rounded-xl border border-rose-300 dark:border-rose-700 bg-white dark:bg-zinc-900 text-rose-700 dark:text-rose-300 hover:bg-rose-100/60 dark:hover:bg-rose-950/50 font-semibold cursor-pointer transition-colors"
+                  className="pressable inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl border border-rose-300 dark:border-rose-700 bg-white dark:bg-zinc-900 text-rose-700 dark:text-rose-300 hover:bg-rose-100/60 dark:hover:bg-rose-950/50 font-semibold cursor-pointer"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   <span>Preencher manualmente</span>
@@ -400,7 +401,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 py-3 px-4 min-h-[44px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+                className="pressable flex items-center justify-center gap-2 py-3 px-4 min-h-[44px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 cursor-pointer"
               >
                 <Camera className="w-4 h-4" />
                 <span>Tirar Foto Agora</span>
@@ -409,7 +410,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 py-3 px-4 min-h-[44px] rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-semibold transition-all cursor-pointer"
+                className="pressable flex items-center justify-center gap-2 py-3 px-4 min-h-[44px] rounded-2xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer"
               >
                 <ImageIcon className="w-4 h-4 text-zinc-500" />
                 <span>Escolher da Galeria</span>
@@ -469,21 +470,21 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
         {/* STEP 3: Review & Confirm */}
         {step === 'review' && (
           <form onSubmit={handleConfirmAndSave} className="space-y-4">
-            {scanSource === 'offline_ocr' && diagnostics ? (
-              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl space-y-2 text-xs text-amber-800 dark:text-amber-300">
-                <div className="flex items-start gap-2 font-medium">
-                  <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <span>
-                    Servidor de IA indisponível — dados extraídos pelo leitor offline do aparelho. Confira os valores antes de salvar.
-                  </span>
-                </div>
-                {renderExpandableDiagnostics('warning')}
+            {scanSource === 'manual' ? (
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/70 rounded-2xl flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                <Pencil className="w-4 h-4 text-zinc-500 shrink-0" />
+                <span>Preenchimento manual · Confira e complete os dados da nota</span>
               </div>
             ) : (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center gap-2 text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  Nota fiscal lida com sucesso! Confira e ajuste os dados abaixo se necessário:
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between gap-2 text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="truncate">
+                    Nota pronta para conferência
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-emerald-700/80 dark:text-emerald-400/90 whitespace-nowrap shrink-0">
+                  {scanSource === 'offline_ocr' ? '· Leitura offline' : '· Leitura por IA'}
                 </span>
               </div>
             )}
@@ -598,29 +599,29 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
               />
             </div>
 
-            <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+            <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={resetAll}
-                className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
+                className="pressable min-h-[40px] px-2 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer whitespace-nowrap"
               >
                 Ler outra foto
               </button>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 cursor-pointer"
+                  className="pressable min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                  className="pressable min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Confirmar e Lançar Despesa</span>
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>Confirmar e Lançar</span>
                 </button>
               </div>
             </div>
