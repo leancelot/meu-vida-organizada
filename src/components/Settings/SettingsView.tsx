@@ -12,6 +12,7 @@ import {
   Moon,
   Package,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   Sliders,
   Smartphone,
@@ -69,6 +70,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     openBankListenerSettings,
     financeLockEnabled,
     setFinanceLockEnabled,
+    openStartFromScratchModal,
   } = useApp();
 
   // Biometric lock state
@@ -205,7 +207,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-4">
       {/* Top Header Card */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -760,6 +762,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </button>
           </div>
         )}
+      </div>
+
+      {/* Card 5: Reiniciar Aplicativo / Recomeçar do Zero */}
+      <div className="bg-white dark:bg-zinc-900 border border-rose-200/80 dark:border-rose-900/50 rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+            <RotateCcw className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+              Recomeçar do Zero
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+              Apague os registros locais e volte para a configuração inicial. Seu backup no Google Drive só é alterado se você autorizar.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            hapticImpactLight();
+            openStartFromScratchModal();
+          }}
+          className="pressable min-h-[44px] px-4 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shrink-0"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Recomeçar do zero</span>
+        </button>
       </div>
     </div>
   );

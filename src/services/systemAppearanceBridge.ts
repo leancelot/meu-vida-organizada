@@ -1,13 +1,23 @@
-import { Capacitor, SystemBars, SystemBarsStyle, registerPlugin } from '@capacitor/core';
+import { Capacitor, PluginListenerHandle, SystemBars, SystemBarsStyle, registerPlugin } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
+
+export interface NativeKeyboardState {
+  isOpen: boolean;
+  height: number;
+}
 
 interface SystemAppearancePlugin {
   notifyAppReady(): Promise<void>;
+  getKeyboardState(): Promise<NativeKeyboardState>;
   setTheme(options: {
     theme: 'light' | 'dark';
     barColor: string;
     backgroundColor: string;
   }): Promise<void>;
+  addListener(
+    eventName: 'keyboardStateChange',
+    listenerFunc: (state: NativeKeyboardState) => void
+  ): Promise<PluginListenerHandle>;
 }
 
 const SystemAppearance = registerPlugin<SystemAppearancePlugin>('SystemAppearance');
@@ -18,6 +28,29 @@ export async function notifyNativeAppReady(): Promise<void> {
     await SystemAppearance.notifyAppReady();
   } catch {
     // Safe fallback when plugin is not present
+  }
+}
+
+export async function getNativeKeyboardState(): Promise<NativeKeyboardState | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  try {
+    return await SystemAppearance.getKeyboardState();
+  } catch {
+    return null;
+  }
+}
+
+export async function subscribeNativeKeyboardState(
+  onChange: (state: NativeKeyboardState) => void
+): Promise<(() => void) | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  try {
+    const handle = await SystemAppearance.addListener('keyboardStateChange', onChange);
+    return () => {
+      handle.remove().catch(() => {});
+    };
+  } catch {
+    return null;
   }
 }
 

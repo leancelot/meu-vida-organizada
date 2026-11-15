@@ -8,6 +8,7 @@ import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Fingerprint, Lock } from 'lucide-react';
 import { notifyNativeAppReady, syncNativeSystemBars } from './services/systemAppearanceBridge';
+import { initKeyboardViewportAdapter } from './services/keyboardAdapter';
 import { authenticateFinanceAccess, isBiometricSupportedOnPlatform } from './services/biometricLockBridge';
 import { hapticImpactLight, hapticSuccess } from './services/hapticsService';
 import { AppProvider, useApp } from './context/AppContext';
@@ -20,6 +21,11 @@ import { FinanceView } from './components/Finance/FinanceView';
 import { SettingsView } from './components/Settings/SettingsView';
 import { OnboardingView } from './components/Onboarding/OnboardingView';
 import { DriveSyncModal } from './components/DriveSync/DriveSyncModal';
+import {
+  AutoRestoredDriveBanner,
+  DriveRestorePromptModal,
+  StartFromScratchModal,
+} from './components/DriveSync/DriveDecisionModals';
 import { NotificationCenterModal } from './components/Notifications/NotificationCenterModal';
 import { QuickActionFab } from './components/Common/QuickActionFab';
 import { ToastUndo } from './components/Common/ToastUndo';
@@ -219,7 +225,7 @@ const MainApp: React.FC = () => {
         openNotificationCenter={() => setIsNotificationCenterOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-28 md:pb-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 pt-3 sm:pt-6 keyboard-safe-main">
         <div key={currentTab} className="animate-tab-enter">
           {currentTab === 'dashboard' && <DashboardView setCurrentTab={setCurrentTab} />}
           {currentTab === 'agenda' && (
@@ -330,10 +336,23 @@ export default function App() {
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('connect_native') === '1';
 
+  useEffect(() => {
+    return initKeyboardViewportAdapter();
+  }, []);
+
   return (
     <BackNavigationProvider>
       <AppProvider>
-        {isConnectNative ? <NativeConnectBridge /> : <MainApp />}
+        {isConnectNative ? (
+          <NativeConnectBridge />
+        ) : (
+          <>
+            <MainApp />
+            <AutoRestoredDriveBanner />
+            <DriveRestorePromptModal />
+            <StartFromScratchModal />
+          </>
+        )}
       </AppProvider>
     </BackNavigationProvider>
   );

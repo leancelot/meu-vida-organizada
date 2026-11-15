@@ -271,3 +271,61 @@
     transform: none !important;
   }
 }
+
+/* Android / Mobile Soft Keyboard Viewport Adaptation */
+:root {
+  --keyboard-inset: 0px;
+  --app-visible-height: 100dvh;
+}
+
+html {
+  scroll-padding-bottom: calc(5rem + var(--keyboard-inset, 0px));
+}
+
+.keyboard-modal-backdrop {
+  padding-bottom: var(--keyboard-inset, 0px);
+  transition: padding-bottom 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.keyboard-modal-sheet {
+  max-height: min(90dvh, calc(var(--app-visible-height, 100dvh) - 16px));
+  scroll-padding-bottom: 1.5rem;
+}
+
+.keyboard-hide-when-open {
+  transition:
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 140ms ease;
+}
+
+html[data-keyboard-open="true"] .keyboard-hide-when-open {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 120%, 0);
+}
+
+.keyboard-safe-main {
+  padding-bottom: calc(7rem + var(--keyboard-inset, 0px));
+}
+
+@media (min-width: 768px) {
+  .keyboard-safe-main {
+    padding-bottom: 3rem;
+  }
+}
+
+.keyboard-toast-offset {
+  bottom: 6rem;
+  transition: bottom 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html[data-keyboard-open="true"] .keyboard-toast-offset {
+  bottom: calc(0.75rem + var(--keyboard-inset, 0px));
+}
+
+@media (min-width: 768px) {
+  .keyboard-toast-offset {
+    bottom: 1.5rem;
+  }
+}
+

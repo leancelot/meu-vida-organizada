@@ -39,7 +39,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   };
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 px-2.5 pb-[max(env(safe-area-inset-bottom,0px),var(--safe-area-inset-bottom,0px),10px)] pointer-events-none">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 px-2.5 pb-[max(env(safe-area-inset-bottom,0px),var(--safe-area-inset-bottom,0px),10px)] pointer-events-none keyboard-hide-when-open">
       <nav
         aria-label="Navegação principal"
         className="pointer-events-auto mx-auto max-w-md bg-white/92 dark:bg-zinc-900/92 backdrop-blur-xl border border-zinc-200/90 dark:border-zinc-800 rounded-3xl shadow-xl shadow-black/10 dark:shadow-black/45 px-1.5 py-1"

@@ -11,10 +11,12 @@ import android.webkit.WebView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.lang.ref.WeakReference;
 
 @CapacitorPlugin(name = "SystemAppearance")
 public class SystemAppearancePlugin extends Plugin {
@@ -24,15 +26,53 @@ public class SystemAppearancePlugin extends Plugin {
     private static final String KEY_BAR_COLOR = "bar_color";
     private static final String KEY_BG_COLOR = "bg_color";
 
+    private static volatile WeakReference<SystemAppearancePlugin> sActiveInstance = new WeakReference<>(null);
+    private static volatile boolean sLastKeyboardOpen = false;
+    private static volatile int sLastKeyboardHeightCssPx = 0;
+
     @Override
     public void load() {
         super.load();
+        sActiveInstance = new WeakReference<>(this);
         if (getActivity() instanceof AppCompatActivity) {
             reapplyLastTheme(
                 (AppCompatActivity) getActivity(),
                 getBridge() != null ? getBridge().getWebView() : null
             );
         }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        SystemAppearancePlugin current = sActiveInstance.get();
+        if (current == this) {
+            sActiveInstance = new WeakReference<>(null);
+        }
+        super.handleOnDestroy();
+    }
+
+    public static void dispatchKeyboardState(boolean isOpen, int heightCssPx) {
+        if (sLastKeyboardOpen == isOpen && sLastKeyboardHeightCssPx == heightCssPx) {
+            return;
+        }
+        sLastKeyboardOpen = isOpen;
+        sLastKeyboardHeightCssPx = heightCssPx;
+
+        SystemAppearancePlugin instance = sActiveInstance.get();
+        if (instance != null) {
+            JSObject payload = new JSObject();
+            payload.put("isOpen", isOpen);
+            payload.put("height", heightCssPx);
+            instance.notifyListeners("keyboardStateChange", payload, true);
+        }
+    }
+
+    @PluginMethod
+    public void getKeyboardState(PluginCall call) {
+        JSObject payload = new JSObject();
+        payload.put("isOpen", sLastKeyboardOpen);
+        payload.put("height", sLastKeyboardHeightCssPx);
+        call.resolve(payload);
     }
 
     @PluginMethod

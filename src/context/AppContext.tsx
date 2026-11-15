@@ -10,6 +10,11 @@ import {
   sanitizeLegacyPayload,
 } from '../utils/storageSanitizer';
 import {
+  BackupCountsSummary,
+  hasMeaningfulLocalData,
+  summarizePayloadCounts,
+} from '../utils/backupSummary';
+import {
   TaskItem,
   Transaction,
   FinancialGoal,
@@ -198,8 +203,25 @@ interface AppContextType {
   removeGoogleCalendarEvent: (eventId: string) => Promise<void>;
   scheduleTaskInCalendar: (task: TaskItem, startHour?: string) => Promise<boolean>;
 
-  // Cloud Drive Sync
+  // Cloud Drive Sync & Login Restore Decisions
   driveSyncInfo: DriveSyncInfo;
+  isCheckingDriveOnLogin: boolean;
+  pendingDriveRestore: {
+    driveFile: DriveFileInfo;
+    remoteData: AppDataPayload;
+    remoteSummary: BackupCountsSummary;
+  } | null;
+  autoRestoredNotice: {
+    summary: BackupCountsSummary;
+    driveFile: DriveFileInfo;
+  } | null;
+  isStartFromScratchOpen: boolean;
+  acceptPendingDriveRestore: () => void;
+  dismissPendingDriveRestore: () => void;
+  dismissAutoRestoredNotice: () => void;
+  openStartFromScratchModal: () => void;
+  closeStartFromScratchModal: () => void;
+  resetWorkspaceToZero: (options?: { alsoResetCloud?: boolean }) => Promise<void>;
   syncToDriveNow: () => Promise<void>;
   restoreFromDriveNow: () => Promise<void>;
   exportBackupJson: () => void;
@@ -449,6 +471,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const notifiedKeysRef = useRef<Set<string>>(new Set());
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const inspectedTokensRef = useRef<Set<string>>(new Set());
+  const cloudOverwriteGuardRef = useRef<boolean>(false);
+
+  const latestDataRef = useRef({
+    tasks,
+    transactions,
+    financialGoals,
+    draftNotes,
+    pendingBankNotifications,
+  });
+  latestDataRef.current = {
+    tasks,
+    transactions,
+    financialGoals,
+    draftNotes,
+    pendingBankNotifications,
+  };
+
+  // Post-login Drive inspection & start-from-scratch state
+  const [isCheckingDriveOnLogin, setIsCheckingDriveOnLogin] = useState(false);
+  const [pendingDriveRestore, setPendingDriveRestore] = useState<{
+    driveFile: DriveFileInfo;
+    remoteData: AppDataPayload;
+    remoteSummary: BackupCountsSummary;
+  } | null>(null);
+  const [autoRestoredNotice, setAutoRestoredNotice] = useState<{
+    summary: BackupCountsSummary;
+    driveFile: DriveFileInfo;
+  } | null>(null);
+  const [isStartFromScratchOpen, setIsStartFromScratchOpen] = useState(false);
 
   // Global confirmation modal state (strictly required for destructive Workspace operations)
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -712,15 +765,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           confetti({ particleCount: 35, spread: 60, origin: { y: 0.8 } });
 
           try {
-            const driveFile = await findDriveBackupFile(token);
-            if (driveFile) {
-              setDriveSyncInfo((prev) => ({
-                ...prev,
-                fileId: driveFile.id,
-                remoteModifiedAt: driveFile.modifiedTime,
-                status: 'cloud_newer',
-              }));
-            }
+            await inspectDriveBackupAfterAuth(token);
           } catch (e) {
             console.warn('Erro ao consultar Drive pós deep link:', e);
           }
@@ -841,8 +886,141 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [accessToken, refreshCalendar]);
 
-  // Auto-check Drive file when logged in
+  const applySanitizedPayload = useCallback(
+    (
+      sanitized: Partial<AppDataPayload>,
+      fileId?: string | null,
+      remoteModifiedAt?: string | null
+    ) => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+      cloudOverwriteGuardRef.current = false;
+
+      if (sanitized.tasks) setTasks(sanitized.tasks);
+      if (sanitized.transactions) setTransactions(sanitized.transactions);
+      if (sanitized.financialGoals) setFinancialGoals(sanitized.financialGoals);
+      if (sanitized.budgetLimits) setBudgetLimits(sanitized.budgetLimits);
+      if (sanitized.draftNotes) setDraftNotes(sanitized.draftNotes);
+      if (sanitized.dashboardWidgets) setDashboardWidgets(sanitized.dashboardWidgets);
+      if (sanitized.pendingBankNotifications) {
+        setPendingBankNotifications(sanitized.pendingBankNotifications);
+      }
+      if (typeof sanitized.userName === 'string' && sanitized.userName.trim()) {
+        setUserNameState(sanitized.userName.trim());
+      }
+
+      const remoteHasData = hasMeaningfulLocalData({
+        tasks: sanitized.tasks || [],
+        transactions: sanitized.transactions || [],
+        financialGoals: sanitized.financialGoals || [],
+        draftNotes: sanitized.draftNotes || [],
+        pendingBankNotifications: sanitized.pendingBankNotifications || [],
+      });
+
+      if (
+        sanitized.onboardingCompleted ||
+        (typeof sanitized.userName === 'string' && sanitized.userName.trim()) ||
+        remoteHasData
+      ) {
+        setOnboardingCompleted(true);
+      }
+
+      if (fileId) {
+        setDriveSyncInfo({
+          fileId,
+          lastSyncedAt: new Date().toISOString(),
+          remoteModifiedAt: remoteModifiedAt || sanitized.lastUpdated || new Date().toISOString(),
+          status: 'synced',
+        });
+      }
+    },
+    []
+  );
+
+  // Inspect Drive backup right after authentication (auto-restore on empty device, prompt if device has data)
+  const inspectDriveBackupAfterAuth = useCallback(
+    async (token: string) => {
+      if (!token || inspectedTokensRef.current.has(token)) return;
+      inspectedTokensRef.current.add(token);
+      setIsCheckingDriveOnLogin(true);
+
+      try {
+        const driveFile = await findDriveBackupFile(token);
+        if (!driveFile) {
+          setDriveSyncInfo((prev) => ({
+            ...prev,
+            status: prev.status === 'error' ? 'idle' : prev.status,
+          }));
+          return;
+        }
+
+        const rawRemote = await readDriveFile(token, driveFile.id);
+        if (!rawRemote) {
+          setDriveSyncInfo((prev) => ({
+            ...prev,
+            fileId: driveFile.id,
+            remoteModifiedAt: driveFile.modifiedTime,
+            status: 'synced',
+          }));
+          return;
+        }
+
+        const sanitized = sanitizeLegacyPayload(rawRemote);
+        const remoteSummary = summarizePayloadCounts(sanitized);
+
+        if (remoteSummary.totalItems === 0) {
+          setDriveSyncInfo((prev) => ({
+            ...prev,
+            fileId: driveFile.id,
+            remoteModifiedAt: driveFile.modifiedTime,
+            status: 'synced',
+          }));
+          return;
+        }
+
+        const localHasData = hasMeaningfulLocalData(latestDataRef.current);
+        if (!localHasData) {
+          applySanitizedPayload(sanitized, driveFile.id, driveFile.modifiedTime);
+          setPendingDriveRestore(null);
+          setAutoRestoredNotice({ summary: remoteSummary, driveFile });
+          hapticSuccess();
+          confetti({ particleCount: 35, spread: 60, origin: { y: 0.75 } });
+        } else {
+          setDriveSyncInfo((prev) => ({
+            ...prev,
+            fileId: driveFile.id,
+            remoteModifiedAt: driveFile.modifiedTime,
+            status: 'cloud_newer',
+          }));
+          setPendingDriveRestore({
+            driveFile,
+            remoteData: sanitized as AppDataPayload,
+            remoteSummary,
+          });
+        }
+      } catch (err) {
+        if (!handleWorkspaceAuthError(err)) {
+          console.warn('Erro ao inspecionar backup do Google Drive no login:', err);
+        }
+      } finally {
+        setIsCheckingDriveOnLogin(false);
+      }
+    },
+    [applySanitizedPayload, handleWorkspaceAuthError]
+  );
+
+  // Trigger initial post-login Drive inspection when accessToken becomes available
+  useEffect(() => {
+    if (accessToken) {
+      void inspectDriveBackupAfterAuth(accessToken);
+    }
+  }, [accessToken, inspectDriveBackupAfterAuth]);
+
+  // Periodic Drive status polling while signed in
   const checkDriveStatus = useCallback(async () => {
+    if (cloudOverwriteGuardRef.current) return;
     const token = accessToken || (await getAccessToken());
     if (!token) return;
 
@@ -869,31 +1047,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [accessToken, handleWorkspaceAuthError]);
 
-  useEffect(() => {
-    if (accessToken) {
-      checkDriveStatus();
-    }
-  }, [accessToken, checkDriveStatus]);
-
   // Real-time synchronization interval
   useEffect(() => {
     if (!accessToken) return;
     const interval = setInterval(() => {
-      checkDriveStatus();
+      void checkDriveStatus();
     }, 45000);
     return () => clearInterval(interval);
   }, [accessToken, checkDriveStatus]);
 
   // Auto-sync debounced after local edits if logged in
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const triggerAutoSync = useCallback(() => {
-    if (!accessToken) return;
+    if (!accessToken || cloudOverwriteGuardRef.current) return;
 
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
     }
 
     syncTimeoutRef.current = setTimeout(async () => {
+      if (cloudOverwriteGuardRef.current) return;
       try {
         setDriveSyncInfo((prev) => ({ ...prev, status: 'syncing' }));
         const payload: AppDataPayload = {
@@ -1080,6 +1252,121 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotificationsList([]);
   };
 
+  // Decision actions for post-login Drive backup & Start from Scratch
+  const acceptPendingDriveRestore = useCallback(() => {
+    if (!pendingDriveRestore) return;
+    const { driveFile, remoteData } = pendingDriveRestore;
+    const sanitized = sanitizeLegacyPayload(remoteData);
+    applySanitizedPayload(sanitized, driveFile.id, driveFile.modifiedTime);
+    setPendingDriveRestore(null);
+    hapticSuccess();
+    confetti({ particleCount: 50, spread: 70, origin: { y: 0.7 } });
+  }, [pendingDriveRestore, applySanitizedPayload]);
+
+  const dismissPendingDriveRestore = useCallback(() => {
+    setPendingDriveRestore(null);
+  }, []);
+
+  const dismissAutoRestoredNotice = useCallback(() => {
+    setAutoRestoredNotice(null);
+  }, []);
+
+  const openStartFromScratchModal = useCallback(() => {
+    setIsStartFromScratchOpen(true);
+  }, []);
+
+  const closeStartFromScratchModal = useCallback(() => {
+    setIsStartFromScratchOpen(false);
+  }, []);
+
+  const resetWorkspaceToZero = useCallback(
+    async (options?: { alsoResetCloud?: boolean }) => {
+      const alsoResetCloud = Boolean(options?.alsoResetCloud);
+
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+
+      let cloudResetResult: DriveFileInfo | null = null;
+      if (alsoResetCloud) {
+        const token = accessToken || (await getAccessToken());
+        if (!token) {
+          throw new Error('Conecte sua conta Google para reiniciar o backup na nuvem.');
+        }
+
+        const cleanPayload: AppDataPayload = {
+          version: CURRENT_DATA_VERSION,
+          lastUpdated: new Date().toISOString(),
+          userName: '',
+          onboardingCompleted: false,
+          tasks: [],
+          transactions: [],
+          financialGoals: [],
+          budgetLimits: [],
+          draftNotes: [],
+          dashboardWidgets: DEFAULT_WIDGETS,
+          pendingBankNotifications: [],
+        };
+
+        try {
+          cloudResetResult = await saveToDrive(token, cleanPayload, driveSyncInfo.fileId);
+        } catch (err: any) {
+          if (handleWorkspaceAuthError(err)) {
+            throw new Error('Sessão Google expirada. Conecte sua conta novamente.');
+          }
+          throw err;
+        }
+      }
+
+      cloudOverwriteGuardRef.current = !alsoResetCloud && Boolean(accessToken);
+
+      setTasks([]);
+      setTransactions([]);
+      setFinancialGoals([]);
+      setBudgetLimits([]);
+      setDraftNotes([]);
+      setDashboardWidgets(DEFAULT_WIDGETS);
+      setPendingBankNotifications([]);
+      setNotificationsList([]);
+      setUserNameState('');
+      setOnboardingCompleted(false);
+      setPendingDriveRestore(null);
+      setAutoRestoredNotice(null);
+      setUndoToast(null);
+      notifiedKeysRef.current.clear();
+
+      try {
+        localStorage.removeItem(STORAGE_KEY_DATA);
+        localStorage.removeItem(STORAGE_KEY_PENDING_BANK);
+        localStorage.removeItem(STORAGE_KEY_BANK_SIGS);
+        localStorage.removeItem(STORAGE_KEY_NOTIFS);
+        localStorage.removeItem(STORAGE_KEY_SYNC);
+      } catch {
+        // ignore
+      }
+
+      if (cloudResetResult) {
+        setDriveSyncInfo({
+          fileId: cloudResetResult.id,
+          lastSyncedAt: new Date().toISOString(),
+          remoteModifiedAt: cloudResetResult.modifiedTime,
+          status: 'synced',
+        });
+      } else {
+        setDriveSyncInfo((prev) => ({
+          fileId: accessToken ? prev.fileId : null,
+          lastSyncedAt: null,
+          remoteModifiedAt: accessToken ? prev.remoteModifiedAt : null,
+          status: accessToken && prev.fileId ? 'cloud_newer' : 'idle',
+        }));
+      }
+
+      hapticWarning();
+    },
+    [accessToken, driveSyncInfo.fileId, handleWorkspaceAuthError]
+  );
+
   // Manual save to Google Drive
   const syncToDriveNow = async () => {
     const token = accessToken || (await getAccessToken());
@@ -1088,6 +1375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    cloudOverwriteGuardRef.current = false;
     setDriveSyncInfo((prev) => ({ ...prev, status: 'syncing', errorMessage: undefined }));
     try {
       const payload: AppDataPayload = {
@@ -1137,37 +1425,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDriveSyncInfo((prev) => ({ ...prev, status: 'syncing' }));
     try {
       let fileId = driveSyncInfo.fileId;
+      let remoteModifiedAt = driveSyncInfo.remoteModifiedAt;
       if (!fileId) {
         const file = await findDriveBackupFile(token);
         if (!file) {
           throw new Error('Nenhum backup do VidaOrganizada foi encontrado no seu Google Drive.');
         }
         fileId = file.id;
+        remoteModifiedAt = file.modifiedTime;
       }
 
       const remoteData = await readDriveFile(token, fileId);
       if (remoteData) {
         const sanitized = sanitizeLegacyPayload(remoteData);
-        if (sanitized.tasks) setTasks(sanitized.tasks);
-        if (sanitized.transactions) setTransactions(sanitized.transactions);
-        if (sanitized.financialGoals) setFinancialGoals(sanitized.financialGoals);
-        if (sanitized.budgetLimits) setBudgetLimits(sanitized.budgetLimits);
-        if (sanitized.draftNotes) setDraftNotes(sanitized.draftNotes);
-        if (sanitized.dashboardWidgets) setDashboardWidgets(sanitized.dashboardWidgets);
-        if (sanitized.pendingBankNotifications) {
-          setPendingBankNotifications(sanitized.pendingBankNotifications);
-        }
-        if (sanitized.userName) setUserNameState(sanitized.userName);
-        if (sanitized.onboardingCompleted || sanitized.userName) {
-          setOnboardingCompleted(true);
-        }
-
-        setDriveSyncInfo({
-          fileId,
-          lastSyncedAt: new Date().toISOString(),
-          remoteModifiedAt: remoteData.lastUpdated || new Date().toISOString(),
-          status: 'synced',
-        });
+        applySanitizedPayload(sanitized, fileId, remoteModifiedAt);
+        setPendingDriveRestore(null);
+        setAutoRestoredNotice(null);
         confetti({ particleCount: 50, spread: 70, origin: { y: 0.7 } });
       }
     } catch (err: any) {
@@ -1198,21 +1471,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (result.user && result.accessToken) {
         sessionExpiredNotifiedRef.current = false;
+        cloudOverwriteGuardRef.current = false;
         setUser(result.user);
         setAccessToken(result.accessToken);
-        try {
-          const driveFile = await findDriveBackupFile(result.accessToken);
-          if (driveFile) {
-            setDriveSyncInfo((prev) => ({
-              ...prev,
-              fileId: driveFile.id,
-              remoteModifiedAt: driveFile.modifiedTime,
-              status: 'cloud_newer',
-            }));
-          }
-        } catch (e) {
-          console.warn('Aviso ao consultar Drive pós login:', e);
-        }
+        await inspectDriveBackupAfterAuth(result.accessToken);
         try {
           const events = await listCalendarEvents(result.accessToken);
           setCalendarEvents(events);
@@ -1239,6 +1501,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const signOut = async () => {
+    inspectedTokensRef.current.clear();
+    cloudOverwriteGuardRef.current = false;
+    setPendingDriveRestore(null);
+    setAutoRestoredNotice(null);
     await fbLogout();
     setUser(null);
     setAccessToken(null);
@@ -1767,6 +2033,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         removeGoogleCalendarEvent,
         scheduleTaskInCalendar,
         driveSyncInfo,
+        isCheckingDriveOnLogin,
+        pendingDriveRestore,
+        autoRestoredNotice,
+        isStartFromScratchOpen,
+        acceptPendingDriveRestore,
+        dismissPendingDriveRestore,
+        dismissAutoRestoredNotice,
+        openStartFromScratchModal,
+        closeStartFromScratchModal,
+        resetWorkspaceToZero,
         syncToDriveNow,
         restoreFromDriveNow,
         exportBackupJson,
@@ -1787,9 +2063,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
             }
           }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in keyboard-modal-backdrop"
         >
-          <div className="w-full sm:max-w-md bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-6 max-h-[90vh] overflow-y-auto relative animate-bottom-sheet">
+          <div className="w-full sm:max-w-md bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-6 keyboard-modal-sheet overflow-y-auto relative animate-bottom-sheet">
             <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
               {confirmConfig.title}

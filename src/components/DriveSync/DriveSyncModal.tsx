@@ -13,6 +13,7 @@ import {
   FileJson,
   HelpCircle,
   RefreshCw,
+  RotateCcw,
   Smartphone,
   Upload,
   X,
@@ -40,6 +41,7 @@ export const DriveSyncModal: React.FC<DriveSyncModalProps> = ({
     exportBackupJson,
     importBackupJson,
     confirmDestructiveAction,
+    openStartFromScratchModal,
   } = useApp();
 
   const [isSyncingAction, setIsSyncingAction] = useState(false);
@@ -136,9 +138,9 @@ export const DriveSyncModal: React.FC<DriveSyncModalProps> = ({
           onClose();
         }
       }}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-backdrop-in keyboard-modal-backdrop"
     >
-      <div className="w-full sm:max-w-xl bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8 max-h-[90vh] overflow-y-auto relative animate-bottom-sheet">
+      <div className="w-full sm:max-w-xl bg-white dark:bg-zinc-900 border-t sm:border border-zinc-200 dark:border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8 keyboard-modal-sheet overflow-y-auto relative animate-bottom-sheet">
         <div className="sm:hidden w-10 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700 mx-auto mb-3 shrink-0" />
         <button
           onClick={() => {
@@ -331,10 +333,24 @@ export const DriveSyncModal: React.FC<DriveSyncModalProps> = ({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2.5">
           <button
+            type="button"
+            onClick={() => {
+              hapticSelection();
+              onClose();
+              openStartFromScratchModal();
+            }}
+            className="pressable min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-1.5 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Recomeçar do zero</span>
+          </button>
+
+          <button
+            type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 cursor-pointer"
+            className="pressable min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 cursor-pointer"
           >
             Fechar
           </button>

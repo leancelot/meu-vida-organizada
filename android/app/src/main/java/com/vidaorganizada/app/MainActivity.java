@@ -14,7 +14,10 @@ import android.view.animation.DecelerateInterpolator;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
 
+import androidx.core.graphics.Insets;
 import androidx.core.splashscreen.SplashScreen;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -96,6 +99,24 @@ public class MainActivity extends BridgeActivity {
         }
 
         SystemAppearancePlugin.reapplyLastTheme(this, mainWebView);
+
+        final View contentRoot = findViewById(android.R.id.content);
+        if (contentRoot != null) {
+            ViewCompat.setOnApplyWindowInsetsListener(contentRoot, (view, windowInsets) -> {
+                final Insets imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+                final Insets navInsets = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars());
+                final boolean isImeVisible =
+                    windowInsets.isVisible(WindowInsetsCompat.Type.ime()) &&
+                    imeInsets.bottom > navInsets.bottom;
+                final float density = Math.max(1f, getResources().getDisplayMetrics().density);
+                final int keyboardCssPx = isImeVisible
+                    ? Math.max(0, Math.round((imeInsets.bottom - navInsets.bottom) / density))
+                    : 0;
+                SystemAppearancePlugin.dispatchKeyboardState(isImeVisible, keyboardCssPx);
+                return ViewCompat.onApplyWindowInsets(view, windowInsets);
+            });
+            ViewCompat.requestApplyInsets(contentRoot);
+        }
     }
 
     @Override

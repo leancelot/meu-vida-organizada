@@ -9,7 +9,7 @@ export const ToastUndo: React.FC = () => {
   if (!undoToast) return null;
 
   return (
-    <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-50 animate-sheet-up">
+    <div className="fixed keyboard-toast-offset left-1/2 -translate-x-1/2 z-50 animate-sheet-up">
       <div className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-3 border border-zinc-800 dark:border-zinc-200">
         <span className="text-xs font-medium max-w-[210px] sm:max-w-xs truncate">
           {undoToast.message}
