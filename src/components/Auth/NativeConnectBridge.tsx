@@ -1,34 +1,122 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { googleSignIn } from '../../services/firebase';
+import {
+  consumeRedirectSignInResult,
+  googleSignIn,
+  isFirebaseConfigured,
+  mapGoogleAuthError,
+} from '../../services/firebase';
 import { CheckCircle2, Smartphone, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+
+interface NativeAuthSession {
+  accessToken: string;
+  idToken?: string | null;
+  email?: string | null;
+  displayName?: string | null;
+}
+
+function buildNativeOAuthDeepLink(accessToken: string, idToken?: string | null): string {
+  const params = new URLSearchParams();
+  params.set('access_token', accessToken);
+  if (idToken) {
+    params.set('id_token', idToken);
+  }
+  return `com.vidaorganizada.app://oauth#${params.toString()}`;
+}
 
 export const NativeConnectBridge: React.FC = () => {
   const { user, accessToken } = useApp();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+  const [localSession, setLocalSession] = useState<NativeAuthSession | null>(null);
+
+  const activeAccessToken = localSession?.accessToken || accessToken;
+  const activeIdToken = localSession?.idToken || null;
+  const activeIdentity =
+    localSession?.email ||
+    localSession?.displayName ||
+    user?.email ||
+    user?.displayName ||
+    'Conta Google conectada';
+
+  const triggerDeepLink = (token: string, idToken?: string | null) => {
+    const deepLink = buildNativeOAuthDeepLink(token, idToken);
+    window.location.href = deepLink;
+  };
+
+  useEffect(() => {
+    let active = true;
+    const finishRedirectIfPending = async () => {
+      try {
+        const redirected = await consumeRedirectSignInResult();
+        if (!active || !redirected?.accessToken) return;
+        setLocalSession({
+          accessToken: redirected.accessToken,
+          idToken: redirected.idToken || null,
+          email: redirected.user.email,
+          displayName: redirected.user.displayName,
+        });
+        triggerDeepLink(redirected.accessToken, redirected.idToken);
+      } catch (err) {
+        if (!active) return;
+        console.error('Erro ao concluir redirecionamento Google:', err);
+        setErrorMsg(mapGoogleAuthError(err));
+      }
+    };
+    void finishRedirectIfPending();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSignIn = async () => {
     setIsLoading(true);
     setErrorMsg(null);
+    setInfoMsg(null);
+
+    if (!isFirebaseConfigured) {
+      setIsLoading(false);
+      setErrorMsg(
+        'Configuração de login Google não carregada no servidor. Atualize a página e tente novamente.'
+      );
+      return;
+    }
+
     try {
-      const res = await googleSignIn();
-      if (res?.accessToken) {
+      const res = await googleSignIn({ allowRedirectFallback: true });
+      if (!res) {
+        setInfoMsg('Login não concluído. Toque no botão abaixo quando estiver pronto para conectar.');
+        return;
+      }
+
+      if (res.isWebRedirect) {
+        return;
+      }
+
+      if (res.accessToken) {
+        setLocalSession({
+          accessToken: res.accessToken,
+          idToken: res.idToken || null,
+          email: res.user?.email,
+          displayName: res.user?.displayName,
+        });
         // Redireciona imediatamente para o app nativo
-        const deepLink = `com.vidaorganizada.app://oauth#access_token=${res.accessToken}`;
-        window.location.href = deepLink;
+        triggerDeepLink(res.accessToken, res.idToken);
+      } else {
+        setErrorMsg('Não foi possível obter a autorização de acesso da sua Conta Google.');
       }
     } catch (err: any) {
       console.error('Erro na autenticação:', err);
-      setErrorMsg('Não foi possível autenticar com o Google. Tente novamente.');
+      setErrorMsg(mapGoogleAuthError(err));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleReturnToApp = () => {
-    if (accessToken) {
-      window.location.href = `com.vidaorganizada.app://oauth#access_token=${accessToken}`;
+    if (activeAccessToken) {
+      triggerDeepLink(activeAccessToken, activeIdToken);
     }
   };
 
@@ -51,14 +139,14 @@ export const NativeConnectBridge: React.FC = () => {
         </div>
 
         {/* Status de Autenticação */}
-        {accessToken && user ? (
+        {activeAccessToken ? (
           <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/60 space-y-3">
             <div className="flex items-center justify-center gap-2 text-emerald-400 font-semibold text-sm">
               <CheckCircle2 className="w-5 h-5 shrink-0" />
               <span>Autenticado com Sucesso!</span>
             </div>
             <p className="text-xs text-zinc-400">
-              Conectado como <strong>{user.email || user.displayName}</strong>
+              Conectado como <strong>{activeIdentity}</strong>
             </p>
             <button
               onClick={handleReturnToApp}
@@ -73,6 +161,12 @@ export const NativeConnectBridge: React.FC = () => {
             {errorMsg && (
               <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-xs text-rose-300">
                 {errorMsg}
+              </div>
+            )}
+
+            {!errorMsg && infoMsg && (
+              <div className="p-3 rounded-xl bg-zinc-800/70 border border-zinc-700 text-xs text-zinc-300">
+                {infoMsg}
               </div>
             )}
 

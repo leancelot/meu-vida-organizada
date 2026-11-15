@@ -34,7 +34,9 @@ import {
 import {
   initAuth,
   googleSignIn,
+  consumeRedirectSignInResult,
   completeNativeGoogleAuth,
+  mapGoogleAuthError,
   logout as fbLogout,
   getAccessToken,
   setSessionToken,
@@ -664,94 +666,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncNativeBankNotifications,
   ]);
 
-  // Handle native Android deep-link OAuth callback (com.vidaorganizada.app://oauth#access_token=...)
+  const processedOAuthUrlsRef = useRef<Set<string>>(new Set());
+
+  // Handle native Android deep-link OAuth callback (warm resume + cold start)
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     let isMounted = true;
-    const setupListener = async () => {
-      const handle = await CapApp.addListener('appUrlOpen', async (data) => {
-        if (!isMounted || !data.url) return;
+
+    const handleNativeOAuthUrl = async (raw?: string | null) => {
+      if (!isMounted || !raw) return;
+      if (!raw.includes('com.vidaorganizada.app') || !raw.includes('access_token=')) return;
+      if (processedOAuthUrlsRef.current.has(raw)) return;
+      processedOAuthUrlsRef.current.add(raw);
+
+      try {
+        const hashIdx = raw.indexOf('#');
+        const queryIdx = raw.indexOf('?');
+        const searchStr =
+          hashIdx !== -1
+            ? raw.substring(hashIdx + 1)
+            : queryIdx !== -1
+            ? raw.substring(queryIdx + 1)
+            : '';
+        const params = new URLSearchParams(searchStr);
+
+        const token = params.get('access_token');
+        const idToken = params.get('id_token');
 
         try {
-          if (data.url.includes('com.vidaorganizada.app')) {
-            const raw = data.url;
-            const hashIdx = raw.indexOf('#');
-            const queryIdx = raw.indexOf('?');
-            const searchStr =
-              hashIdx !== -1
-                ? raw.substring(hashIdx + 1)
-                : queryIdx !== -1
-                ? raw.substring(queryIdx + 1)
-                : '';
-            const params = new URLSearchParams(searchStr);
-
-            const token = params.get('access_token');
-            const idToken = params.get('id_token');
-
-            try {
-              await Browser.close();
-            } catch {
-              // ignore
-            }
-
-            if (token) {
-              setIsAuthenticating(true);
-              sessionExpiredNotifiedRef.current = false;
-              const loggedUser = await completeNativeGoogleAuth(token, idToken);
-              setAccessToken(token);
-              if (loggedUser) {
-                setUser(loggedUser);
-              }
-
-              confetti({ particleCount: 35, spread: 60, origin: { y: 0.8 } });
-
-              try {
-                const driveFile = await findDriveBackupFile(token);
-                if (driveFile) {
-                  setDriveSyncInfo((prev) => ({
-                    ...prev,
-                    fileId: driveFile.id,
-                    remoteModifiedAt: driveFile.modifiedTime,
-                    status: 'cloud_newer',
-                  }));
-                }
-              } catch (e) {
-                console.warn('Erro ao consultar Drive pós deep link:', e);
-              }
-
-              try {
-                const events = await listCalendarEvents(token);
-                setCalendarEvents(events);
-              } catch (e) {
-                console.warn('Erro ao consultar Agenda pós deep link:', e);
-              }
-
-              const successNotif: AppNotification = {
-                id: 'notif-auth-ok-' + Date.now(),
-                title: '🎉 Google Conectado com Sucesso',
-                body: 'Sua conta Google foi sincronizada. Google Drive e Agenda estão ativos.',
-                timestamp: new Date().toISOString(),
-                type: 'reminder',
-                read: false,
-              };
-              setNotificationsList((prev) => [successNotif, ...prev]);
-            }
-          }
-        } catch (err: any) {
-          console.error('Falha ao processar login nativo do Google:', err);
-        } finally {
-          setIsAuthenticating(false);
+          await Browser.close();
+        } catch {
+          // ignore
         }
-      });
 
-      return handle;
+        if (token) {
+          setIsAuthenticating(true);
+          sessionExpiredNotifiedRef.current = false;
+          const loggedUser = await completeNativeGoogleAuth(token, idToken);
+          setAccessToken(token);
+          if (loggedUser) {
+            setUser(loggedUser);
+          }
+
+          confetti({ particleCount: 35, spread: 60, origin: { y: 0.8 } });
+
+          try {
+            const driveFile = await findDriveBackupFile(token);
+            if (driveFile) {
+              setDriveSyncInfo((prev) => ({
+                ...prev,
+                fileId: driveFile.id,
+                remoteModifiedAt: driveFile.modifiedTime,
+                status: 'cloud_newer',
+              }));
+            }
+          } catch (e) {
+            console.warn('Erro ao consultar Drive pós deep link:', e);
+          }
+
+          try {
+            const events = await listCalendarEvents(token);
+            setCalendarEvents(events);
+          } catch (e) {
+            console.warn('Erro ao consultar Agenda pós deep link:', e);
+          }
+
+          const successNotif: AppNotification = {
+            id: 'notif-auth-ok-' + Date.now(),
+            title: '🎉 Google Conectado com Sucesso',
+            body: 'Sua conta Google foi sincronizada. Google Drive e Agenda estão ativos.',
+            timestamp: new Date().toISOString(),
+            type: 'reminder',
+            read: false,
+          };
+          setNotificationsList((prev) => [successNotif, ...prev]);
+        }
+      } catch (err: any) {
+        console.error('Falha ao processar login nativo do Google:', err);
+      } finally {
+        if (isMounted) setIsAuthenticating(false);
+      }
     };
 
-    const promise = setupListener();
+    CapApp.getLaunchUrl()
+      .then((launch) => handleNativeOAuthUrl(launch?.url))
+      .catch(() => {});
+
+    const listenerPromise = CapApp.addListener('appUrlOpen', (data) => {
+      void handleNativeOAuthUrl(data?.url);
+    });
+
     return () => {
       isMounted = false;
-      promise.then((h) => h?.remove());
+      listenerPromise.then((h) => h?.remove()).catch(() => {});
+    };
+  }, []);
+
+  // Complete web redirect sign-in if main web app ever fell back to redirect
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('connect_native') === '1') {
+      return;
+    }
+
+    let active = true;
+    consumeRedirectSignInResult()
+      .then((res) => {
+        if (!active || !res?.accessToken || !res.user) return;
+        sessionExpiredNotifiedRef.current = false;
+        setUser(res.user);
+        setAccessToken(res.accessToken);
+      })
+      .catch((err) => {
+        console.warn('Erro ao finalizar login Google via redirecionamento:', err);
+      });
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -1160,7 +1191,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const result = await googleSignIn();
       if (!result) return;
 
-      if ((result as any).isNativeRedirect) {
+      if (result.isNativeRedirect || result.isWebRedirect) {
         // Redirecionado para Chrome seguro (Custom Tab); o listener appUrlOpen concluirá a autenticação
         return;
       }
@@ -1191,10 +1222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (err: any) {
       console.warn('Aviso de login:', err);
-      const userMessage =
-        err?.message?.includes('popup') || err?.code === 'auth/popup-blocked'
-          ? 'O navegador bloqueou a janela de login. Por favor, permita pop-ups para conectar com o Google.'
-          : 'Não foi possível completar o login com o Google no momento. O app continuará funcionando normalmente no modo local.';
+      const userMessage = mapGoogleAuthError(err);
 
       const newNotif: AppNotification = {
         id: 'notif-auth-' + Date.now(),

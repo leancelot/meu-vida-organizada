@@ -3,6 +3,8 @@ import {
   getAuth,
   Auth,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithCredential,
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -38,6 +40,40 @@ provider.setCustomParameters({
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
 
+export interface GoogleSignInResult {
+  user?: User;
+  accessToken?: string;
+  idToken?: string | null;
+  isNativeRedirect?: boolean;
+  isWebRedirect?: boolean;
+}
+
+export const mapGoogleAuthError = (error: unknown): string => {
+  const err = error as { code?: string; message?: string } | null;
+  const code = err?.code || '';
+  const msg = err?.message || '';
+
+  if (!isFirebaseConfigured || msg.includes('não configurada')) {
+    return 'Configuração de login Google não carregada no servidor. Atualize a página e tente novamente.';
+  }
+  if (code === 'auth/popup-blocked') {
+    return 'O navegador bloqueou a janela de login. Permita pop-ups para este site e tente novamente.';
+  }
+  if (code === 'auth/unauthorized-domain') {
+    return 'Este endereço ainda não está autorizado para autenticação com o Google.';
+  }
+  if (code === 'auth/network-request-failed') {
+    return 'Falha de conexão com a internet. Verifique sua rede e tente novamente.';
+  }
+  if (code === 'auth/operation-not-allowed') {
+    return 'O login com Conta Google não está ativado neste projeto.';
+  }
+  if (code === 'auth/internal-error') {
+    return 'Erro temporário ao comunicar com o Google. Tente novamente em alguns instantes.';
+  }
+  return 'Não foi possível autenticar com o Google. Tente novamente.';
+};
+
 export const setSessionToken = (token: string | null) => {
   cachedAccessToken = token;
 };
@@ -67,7 +103,37 @@ export const initAuth = (
   });
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string; isNativeRedirect?: boolean } | null> => {
+export const consumeRedirectSignInResult = async (): Promise<{
+  user: User;
+  accessToken: string;
+  idToken?: string | null;
+} | null> => {
+  if (!auth) return null;
+  try {
+    isSigningIn = true;
+    const result = await getRedirectResult(auth);
+    if (!result) return null;
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      return null;
+    }
+    cachedAccessToken = credential.accessToken;
+    return {
+      user: result.user,
+      accessToken: cachedAccessToken,
+      idToken: credential.idToken || null,
+    };
+  } catch (error) {
+    console.warn('Falha ao concluir autenticação via redirecionamento:', error);
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+export const googleSignIn = async (options?: {
+  allowRedirectFallback?: boolean;
+}): Promise<GoogleSignInResult | null> => {
   try {
     isSigningIn = true;
 
@@ -78,22 +144,38 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string;
         'https://ais-dev-3wiiypdjeboooeth4s5qlf-202698123569.us-east1.run.app';
       const bridgeUrl = `${baseUrl.replace(/\/$/, '')}?connect_native=1`;
       await Browser.open({ url: bridgeUrl, windowName: '_system' });
-      return { isNativeRedirect: true } as any;
+      return { isNativeRedirect: true };
     }
 
     if (!auth) {
       throw new Error('Autenticação Google não configurada neste ambiente.');
     }
 
-    // Fluxo padrão para Navegador Web Desktop / Dev
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Falha ao obter token de acesso do Google.');
-    }
+    // Fluxo padrão via popup seguro do Firebase Auth
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (!credential?.accessToken) {
+        throw new Error('Falha ao obter token de acesso do Google.');
+      }
 
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
+      cachedAccessToken = credential.accessToken;
+      return {
+        user: result.user,
+        accessToken: cachedAccessToken,
+        idToken: credential.idToken || null,
+      };
+    } catch (popupError: any) {
+      if (
+        options?.allowRedirectFallback &&
+        (popupError?.code === 'auth/popup-blocked' ||
+          popupError?.code === 'auth/operation-not-supported-in-this-environment')
+      ) {
+        await signInWithRedirect(auth, provider);
+        return { isWebRedirect: true };
+      }
+      throw popupError;
+    }
   } catch (error: any) {
     if (
       error?.code === 'auth/popup-closed-by-user' ||
